@@ -1,0 +1,587 @@
+# Relaciones — notas para futuras sesiones
+
+App personal de escritorio para cultivar relaciones. Una sola persona la usa.
+Corre en local, **nunca habla con internet**.
+
+## Stack (no se discute)
+
+- Python 3 en Windows. FastAPI + uvicorn, todo el backend en `app.py`.
+- `main.py` arranca uvicorn en un hilo demonio (`0.0.0.0`, puerto 9765 fijo) y
+  abre una ventana pywebview contra `http://127.0.0.1:9765`. El puerto no se
+  busca ni se negocia: si está ocupado, la app avisa y no arranca, porque
+  Tailscale apunta ahí. **No usar puertos por debajo del 9765**: el
+  usuario trabaja con otros servicios ahí (8188 entre ellos).
+- Nunca matar procesos filtrando por nombre o por línea de comandos (`main.py`
+  coincide con servicios ajenos). Si hay que cerrar algo de esta app, localizarlo
+  por el puerto concreto que escucha.
+- SQLite con el módulo `sqlite3` de la estándar, archivo `datos.db` en esta
+  carpeta. Sin ORM. El esquema se crea al arrancar si no existe, y las bases de
+  versiones anteriores se ponen al día en `poner_al_dia()`, que es idempotente.
+- HTML/CSS/JS planos. Sin frameworks, sin build, sin npm, sin CDN, sin fuentes
+  remotas: la única tipografía cargada es un `@font-face` local.
+- Todo formulario es `POST` + redirección 303. Se puede usar JavaScript para
+  mejorar la interacción; no es una limitación del proyecto. Las acciones que
+  escriben datos conservan un formulario HTML normal. La única ruta que devuelve
+  JSON es `GET /api/grafo`.
+
+## Cómo se llaman las cosas
+
+**Ninguna palabra técnica en pantalla.** En la base de datos hay tablas con
+nombres viejos que en pantalla se dicen de otra manera:
+
+| En la base | En pantalla |
+| --- | --- |
+| `circulo` | **círculo**: de dónde conozco a alguien |
+| `hilo` con `tipo='pendiente'` | **Queda pendiente**: lo que tengo que hacer yo |
+| `hilo` con `tipo='preguntar'` | **Preguntar por**: cosas de su vida |
+| `hecho` | **Datos** |
+| `nota` | **Quedadas** |
+| `relacion` | **Relaciones** |
+| cerrar un hilo | **Ya está** |
+| escribir una nota | **Apuntar algo** |
+| exportar | **Guardar una copia de todo** |
+| última nota | **Hablamos hace** (y el valor no repite el «hace»: *tres días*) |
+
+Los estados vacíos son frases cortas, no rótulos con un campo debajo: *«No le
+debes nada ahora mismo»*, *«Nada en marcha ahora mismo»*, *«Aún no has apuntado
+nada suyo»*, *«Todavía no habéis coincidido, o no lo has apuntado»*, *«No sabemos
+aún a quién conoce»*.
+
+Dos palabras **prohibidas**, porque nombraron conceptos que se eliminaron:
+
+- **entorno**: fue un nombre efímero para el círculo. No debe reaparecer ni en
+  el código ni en los comentarios.
+- **tema** («de qué habláis»): duplicaba el trabajo del círculo. Se borraron las
+  tablas `tema` y `nota_tema`, y sus datos quedaron en
+  `temas-borrados-2026-07-25.json`.
+
+## Modelo de datos
+
+```
+circulo(id, nombre, orden)
+persona(id, nombre, apodo, circulo_id, color, cumple, notas_rapidas, foto, creada)
+hecho(id, persona_id, texto, creado)
+hilo(id, persona_id, texto, abierto_desde, cerrado_el, tipo)
+nota(id, fecha, canal, texto, creada)
+nota_persona(nota_id, persona_id)
+relacion(persona_a, persona_b, etiqueta, etiqueta_inversa)
+ajuste(clave, valor)                          -- sólo guarda la llave de red
+```
+
+Lo que no es evidente:
+
+- **apodo** es «cómo le llamas». Si tiene contenido, es el nombre principal en
+  listas, búsquedas, selecciones y red. El nombre completo sólo reaparece como
+  subtítulo en la ficha completa y en la ficha rápida de Personas.
+- Una **nota** puede mencionar a varias personas, por eso no cuelga de una
+  persona: hay tabla intermedia. Es lo que teje la red sin trabajo extra.
+- **hecho** es lo que no caduca: odia el cilantro, su hermana se llama Ana.
+- **hilo** es lo que sí caduca, y su `tipo` lo parte en dos cosas distintas:
+  `pendiente` es lo que yo tengo que hacer por esa persona; `preguntar` es algo
+  de su vida por lo que interesarme la próxima vez. Antes esto era un booleano
+  `mio`; la puesta al día lo convirtió (`mio=1` → `pendiente`).
+- **circulo** es de dónde conozco a alguien (amigos, familia, trabajo, barrio,
+  hípica, universidad). Uno solo por persona y **la única forma de clasificar
+  gente que existe**. No lleva frecuencia asociada y el sistema no deduce nada
+  de él. De fábrica, en una base nueva: Amigos, Familia, Trabajo y Barrio. Se
+  pueden crear, renombrar, reordenar y borrar; al borrar uno, su gente se queda
+  sin círculo pero **no se borra** (`ON DELETE SET NULL`).
+- **canal** es un campo de texto libre de la quedada, no de la persona. La app
+  sugiere los ya usados; se puede escribir cualquier otro.
+- **relacion**: `etiqueta` describe qué es B respecto de A; `etiqueta_inversa`
+  qué es A respecto de B ("madre de" / "hijo de"). Si la inversa está vacía se
+  usa la misma en las dos fichas. Una sola fila por pareja.
+- **foto** es opcional. Se recorta a 256×256, se convierte a PNG de 1 bit con
+  tramado y se guarda como texto base64 dentro de `datos.db`; por eso ya queda
+  incluida automáticamente en *Guardar una copia de todo*.
+- Fechas **siempre ISO en la base de datos, siempre en lenguaje natural en
+  pantalla**. Los cumpleaños sin año se guardan como `--MM-DD`. Los números van
+  en palabras («tres días», «dos semanas»), no en cifras.
+
+## Las cinco pantallas
+
+1. `/` **La portada es la red**, siempre y a pantalla completa. Incluye búsqueda
+   propia, cuadrados para señalar círculos, controles de cámara, pausa de
+   movimiento y una ficha lateral. La red sigue siendo tridimensional y es el
+   primer contacto con la app.
+2. `/personas` es un archivador de tres partes: los círculos funcionan como
+   carpetas, la columna central enseña hasta seis personas por página y la
+   derecha ofrece una ficha rápida. Las flechas cambian de página sin apilar
+   toda la lista. En móvil se recorre carpeta, persona y ficha por pasos. El
+   alta permite indicar nombre, apodo, círculo y varias relaciones iniciales.
+   La administración de círculos no vive aquí.
+3. `/persona/{id}` ordena la ficha así: identidad con foto opcional y resumen,
+   cosas en marcha, quedadas, datos y relaciones. No lleva índice interno. La
+   edición personal queda al final y las **quedadas se paginan de diez en diez**.
+   Cada quedada lleva a su pantalla de edición y cada relación se edita en la
+   propia ficha, mostrando con nombres qué significa en ambos sentidos.
+4. `/nota` es un recorrido lineal: qué ocurrió, cuándo y por dónde, con quién.
+   Sigue accesible con la tecla `N` y `Ctrl + Enter`. `/nota/{id}` reutiliza el
+   recorrido para cambiar una quedada, incluidas fecha, canal y personas.
+5. `/ajustes` contiene modo día/noche, administración de círculos y copia de todo.
+
+La navegación principal muestra siempre: *Red*, *Personas*, *Apuntar* y *Ajustes*.
+
+## El estilo: interfaz pixelada 1-bit
+
+El lenguaje visual toma referencias de interfaces gráficas tempranas, software
+editorial y juegos de un bit. La estructura debe sentirse precisa, modular y
+deliberada, nunca decorada por nostalgia sin función.
+
+- Sólo papel `#f4efe1` y tinta `#14120f`; noche invierte ambos. El color guardado
+  de una persona sigue siendo un dato editable, pero no rompe la interfaz 1-bit.
+- Departure Mono se incluye localmente en `estatico/tipos/` bajo SIL OFL. Se usa
+  a 11px para navegación, controles y rótulos. El texto largo usa serif a 16px.
+- Títulos personales a 33px. Cuerpo a 16px. Interfaz a 11px.
+- Filetes nítidos de 1px, esquinas rectas, selecciones por inversión de tinta y
+  tramas binarias sin grises.
+- Las secciones se separan con aire, filete y un pequeño cuadrado de tinta.
+  Las bandas negras se reservan para acciones o estados seleccionados; no se
+  repiten como cabecera de todos los paneles.
+- *Queda pendiente* conserva su filete exterior, pero no lleva retícula ni otra
+  trama decorativa detrás del encabezado o del contenido.
+- Los controles tienen al menos 40px de alto y el foco de teclado usa un
+  contorno visible de 2px.
+- Se admiten retículas de una y dos columnas según la tarea, con texto largo
+  limitado a 640px. En móvil todo vuelve a una columna.
+- Las columnas de Personas, Apuntar y Ajustes se centran en la ventana, pero el
+  texto permanece alineado a la izquierda.
+- No crear desplazamiento interno si el contenido puede crecer con la página.
+  Cuando una región acotada lo necesita, su barra es fina, monocroma, integrada
+  y la región sigue siendo alcanzable con teclado.
+- No usar sombras suaves, degradados tonales, esquinas redondeadas, opacidad para
+  jerarquía ni animaciones ornamentales.
+
+Detalles intencionados:
+
+- `app.js` se carga en el `<head>` para aplicar el modo antes del primer pintado.
+- Los formularios de añadir pueden vivir en `<details class="anadir">`; al
+  abrirlos, JavaScript enfoca el primer campo.
+- Las acciones pequeñas («Ya está», «Quitar», «Subir») permanecen visibles.
+- El nombre habitual lleva su círculo debajo en listas y selecciones. Cuando
+  hay apodo, la ficha muestra el nombre completo debajo como subtítulo.
+
+## La red (`estatico/grafo.js`)
+
+**Nítida y a resolución completa.** Se probó a dibujarla pixelada en un lienzo a
+un tercio y con las transparencias en escalones: destrozaba las líneas finas y
+se comía la profundidad. No repetirlo: el aspecto de píxel lo pone la tipografía
+de los nombres, la red no necesita fingirlo.
+
+- Un solo lienzo, escalado por `devicePixelRatio`, sin `imageSmoothingEnabled`
+  ni `image-rendering: pixelated`.
+- **Los puntos son pequeños y llenos.** El radio base lo manda cuántas veces has
+  apuntado algo de esa persona (`2 + √notas·0.9`, tope 5) y la profundidad lo
+  corrige acotada (`escala()` entre 0.6 y 1.6), así que en pantalla van de 1.2 a
+  8px. La profundidad también aclara el punto de forma continua, nunca a saltos.
+- **Las líneas, de 1px y al 7% de tinta**: casi al borde de no verse. Una red se
+  lee bien cuando está medio vacía.
+- **No hay anillos concéntricos.** Los círculos se muestran como cuadrados en
+  *Explorar la red*. Al pasar o enfocar se iluminan temporalmente sus personas;
+  al pulsar, la selección queda fijada. Nadie cambia de lugar.
+- **Los nombres no se enseñan todos**: sólo los del 40% más cercano a la cámara
+  (`CERCANIA_NOMBRES`), y al señalar a alguien sólo el suyo y los de sus
+  conexiones. Siempre usan el nombre habitual si existe. Van en Departure a
+  11px.
+- **Al señalar, el contraste es bestia a propósito**: esa persona y sus
+  conexiones a plena tinta, todo lo demás al 5%.
+- La persona cuyo círculo se llama **Yo** es el origen estable de la red y se
+  mantiene en `(0, 0, 0)`. Las personas con círculo ocupan el volumen directo,
+  entre radios 220 y 430, y se enlazan con ella. Quienes no tienen círculo son
+  indirectas: ocupan el volumen exterior, entre 500 y 700, y nunca reciben un
+  enlace directo al centro.
+- La colocación y las fuerzas usan X, Y y Z con la misma amplitud. No se aplasta
+  el eje vertical ni se construye una cáscara plana.
+- La cámara está lejos (`camZ` 1500, y 1900 en pantalla estrecha) para que los
+  puntos cercanos no se proyecten enormes.
+- El giro automático es de 0.00087 radianes por fotograma: una vuelta cada dos
+  minutos. Calmado, pero vivo.
+- La caja *Explorar la red* integra resultados de nombres y los cuadrados de
+  círculo, además de acercar, alejar, centrar y pausar el giro. No usa
+  desplegables nativos. El botón izquierdo arrastrado gira; el derecho o el
+  central desplazan dentro de un límite; la rueda controla el zoom. Las flechas
+  desplazan, Mayúsculas más flechas giran y *Centrar* restablece la cámara.
+- La ficha flotante lleva foto si existe, nombre, círculo, hablamos hace, queda
+  pendiente, preguntar por, vistas previas compactas de quedadas y relaciones,
+  y botones para apuntar o abrir la ficha. En escritorio no crea una barra de
+  desplazamiento exterior.
+- En la ficha completa, el selector para enlazar otra persona abre sus resultados
+  como una lista flotante bajo el buscador; la lista no cambia la altura de la
+  caja de relación.
+
+## Lo que NO se debe construir
+
+Si parece que algo de esto mejoraría la app: no se hace, se dice.
+
+- Ninguna puntuación, porcentaje, racha, "salud de la relación" ni métrica
+  numérica al lado del nombre de nadie.
+- Ningún recordatorio, notificación, aviso ni frecuencia de contacto.
+- Ningún dashboard, gráfica ni estadística.
+- Ninguna importación de contactos del móvil.
+- Ningún usuario, login, contraseña ni permiso. La llave de red **no** es un
+  sistema de usuarios: no hay tabla de usuarios, ni registro, ni contraseñas.
+- Ninguna llamada a internet, API, CDN ni telemetría.
+- Ningún campo de "cómo nos conocimos", deudas de dinero, ni notas marcadas como
+  positivas o negativas.
+- Ningún diario personal: esto registra a otras personas, no al usuario.
+- Nada de "persona en pausa" (pedido y descartado explícitamente).
+- Ninguna otra forma de clasificar gente aparte del círculo.
+
+## Cómo trabajar aquí
+
+Un cambio cada vez. No reescribir archivos enteros para tocar una función.
+Antes de añadir cualquier cosa que no esté en el encargo, preguntar. Avisar
+siempre de los datos que se van a perder antes de tocar la base.
+
+Una acción dentro de la misma pantalla **nunca puede mandar la página arriba**.
+Los formularios y enlaces que recargan la ruta conservan la posición; cuando el
+destino es una parte concreta, se usa un ancla explícita. Esta regla se aplica a
+toda la app, no sólo a Personas.
+
+Después de cualquier cambio, añadir una entrada fechada al registro de este
+archivo. `CLAUDE.md` es la memoria de cambios del proyecto.
+
+`python ejemplo.py` mete 20 personas de mentira en seis círculos para ver la red
+con algo dentro, y `python ejemplo.py --quitar` las saca. Si ya están, no hace
+nada: primero hay que quitarlas.
+
+## Registro de cambios
+
+### 2026-07-27 — Controles de ratón de la red
+
+- Arrastrar con el botón izquierdo gira la red. Arrastrar con el derecho o el
+  central desplaza la vista y la rueda controla el zoom.
+- El menú contextual y el desplazamiento automático del botón central se
+  cancelan únicamente dentro del lienzo para no interferir con esos controles.
+- Un toque sigue desplazando y tocar sin arrastrar sigue seleccionando.
+
+### 2026-07-27 — Edición de quedadas y relaciones
+
+- Cada quedada tiene una acción *Editar* que abre el formulario completo con su
+  contenido y sus personas ya marcadas.
+- Cada relación tiene su propio bloque *Editar*. Los dos campos dicen
+  explícitamente «qué es A para B» y «qué es B para A», usando los nombres
+  reales para que la dirección nunca quede implícita.
+- El selector de personas para una relación se abre al buscar y se cierra al
+  elegir. El nombre seleccionado pasa también a los dos rótulos del formulario.
+- `Relaciones.exe` excluye NumPy, que Pillow sólo ofrecía como integración
+  opcional y la app no usa. El paquete baja de 39,7 MB a 28,9 MB; se comprobó
+  aparte que el recorte y la conversión 1-bit de las fotos siguen funcionando.
+- Las pruebas de guardado se hicieron sobre una copia temporal de `datos.db`;
+  no se modificaron los datos reales.
+
+### 2026-07-27 — Centro ocupado y desplazamiento de la red
+
+- Se quitó la retícula decorativa de *Queda pendiente*; el recuadro conserva su
+  jerarquía mediante el filete y el espacio.
+- La red dejó de distribuir a todas las personas sobre una cáscara: ahora ocupa
+  el centro y reduce su radio exterior para evitar acumular nodos en los lados.
+- El arrastre normal desplaza la vista dentro de límites proporcionados a la
+  ventana. Mayúsculas más arrastre conserva la rotación, las flechas ofrecen
+  ambas operaciones y *Centrar* restablece la cámara completa.
+
+### 2026-07-27 — Red sin anillos, jerarquía amable y fotos
+
+- Se eliminaron los anillos concéntricos de la portada. Los círculos pasaron a
+  una leyenda de cuadrados con previsualización al pasar o enfocar y selección
+  fija al pulsar, sin recolocar personas.
+- La búsqueda de la red y el selector de relaciones se sustituyeron por
+  componentes integrados con resultados propios.
+- Personas, Apuntar y Ajustes centran su columna. La jerarquía global ahora usa
+  espacio, filetes y encabezados claros en vez de repetir bandas negras.
+- La ficha dejó de tener índice; los controles de añadir están a la derecha y
+  fuera del contenido de sus secciones.
+- Apuntar usa una «×» propia y su listado deja crecer la página en vez de crear
+  una barra interior. Las barras necesarias son finas, monocromas y accesibles.
+- Se añadió `persona.foto` mediante una migración idempotente. Las imágenes se
+  recortan, tramitan a 1 bit, se guardan dentro de `datos.db`, aparecen en la
+  ficha y la red, y viajan en la copia completa. No se eliminó ningún dato.
+
+### 2026-07-27 — Arranque con doble clic
+
+- Se preparó una versión autónoma `Relaciones.exe` que abre la ventana sin
+  PowerShell ni una instalación local de Python.
+- En la versión ejecutable, los recursos se leen del paquete y `datos.db` se
+  mantiene junto al `.exe`; mover ambos archivos conserva toda la información.
+- Los fallos de arranque del ejecutable se muestran en una ventana y dejan el
+  detalle en `relaciones-error.txt`. No hubo cambios ni pérdida de datos.
+
+### 2026-07-27 — Reorganización UX e interfaz 1-bit
+
+- Se sustituyó la navegación dispersa por cuatro destinos persistentes: Red,
+  Personas, Apuntar y Ajustes.
+- Personas se separó en cuatro vistas: todas, queda pendiente, preguntar por y
+  hace tiempo. La búsqueda avanzada se mantiene en la vista general.
+- La administración de círculos pasó de Personas a Ajustes.
+- La ficha personal se reordenó: resumen, cosas en marcha, quedadas, datos,
+  relaciones y edición personal.
+- Apuntar algo pasó a un recorrido lineal de tres partes e incorporó filtro y
+  contador de personas mediante JavaScript.
+- La red añadió búsqueda, filtro por círculo, zoom, centrado, pausa, controles de
+  teclado, estado visible y una ficha lateral reorganizada.
+- Se creó un sistema visual pixelado 1-bit adaptable a móvil, con controles
+  amplios, foco visible, barras de panel invertidas y tramas binarias.
+- Se incorporó Departure Mono como archivo local bajo SIL OFL y se versionaron
+  los recursos estáticos para evitar estilos antiguos en caché.
+- Se eliminó la restricción documental contra JavaScript. No hubo cambios en el
+  modelo de datos ni pérdida de información.
+### 2026-07-28 — Posición estable al guardar
+
+- Los formularios que recargan y vuelven exactamente a la misma pantalla
+  conservan ahora la posición vertical. Añadir o cambiar círculos, y las demás
+  acciones equivalentes, ya no mandan la vista al principio de la página.
+- La posición no se restaura si la acción abre otra pantalla o lleva a un ancla
+  concreta, de modo que la navegación intencionada mantiene su destino.
+- Las casillas invisibles para elegir personas quedan físicamente dentro de su
+  tarjeta; enfocarlas ya no puede hacer que ciertos motores desplacen la página.
+
+### 2026-07-28 — El círculo `Yo` como centro y relaciones compactas
+
+- La persona incluida en el círculo `Yo` pasa a ser el centro fijo de la red.
+  Las personas con círculo se conectan directamente con ella y las que no
+  tienen círculo quedan como contactos indirectos, sin enlace al centro.
+- La distribución deja de comprimir el eje Y: los nodos y las fuerzas ocupan de
+  verdad los ejes X, Y y Z.
+- El buscador para añadir relaciones usa una lista flotante que se cierra al
+  elegir, al pulsar Escape o al hacer clic fuera, sin alargar el formulario.
+- No se cambió el esquema ni se eliminó ningún dato. La propuesta de carpetas
+  para Personas queda pendiente de aprobación y no se implementó.
+
+### 2026-07-28 — Archivador de personas y nombres habituales
+
+- Antes del cambio se guardó una copia completa y restaurable en
+  `copias/Relaciones-antes-archivador-2026-07-28.zip`, con código, ejecutable y
+  `datos.db`.
+- «Cómo le llamas» pasa a ser el nombre visible en listas, búsquedas,
+  selecciones y red. En la ficha completa y en la ficha rápida, el nombre
+  completo queda debajo como subtítulo.
+- El alta de una persona permite escribir desde el principio tanto su nombre
+  completo como la manera habitual de llamarla.
+- *Todas* en Personas se convirtió en un archivador: los círculos son carpetas,
+  la columna central contiene las personas y la derecha ofrece una ficha rápida
+  con acceso a Apuntar y a la ficha completa.
+- Queda pendiente, Preguntar por, Hace tiempo, buscar en lo apuntado, ordenar,
+  añadir y editar conservan su funcionamiento. En móvil, elegir una persona abre
+  sólo su ficha rápida y ofrece volver a la lista.
+- No se cambió el esquema ni se transformó o eliminó información existente.
+
+### 2026-07-28 — Archivador paginado y alta completa
+
+- Se retiraron las pestañas y la búsqueda avanzada que precedían al archivador:
+  ese espacio contiene ahora un único bloque de *Añadir persona*, con nombre,
+  manera habitual de llamarla, círculo y tantas relaciones iniciales como hagan
+  falta.
+- El alta conserva formularios HTML normales y permite quitar una fila de
+  relación antes de guardar. Al terminar abre la ficha recién creada, donde ya
+  aparecen su círculo y sus relaciones en ambos sentidos.
+- Cada carpeta enseña como máximo seis personas. Dos flechas permiten cambiar
+  de página sin crear una columna interminable, manteniendo carpeta, búsqueda y
+  ficha rápida.
+- La ficha completa lleva *Volver al archivador*. En móvil, la ficha rápida
+  conserva además su regreso propio a la lista.
+- Cabecera, alta y archivador comparten exactamente el mismo ancho y se adaptan
+  a una columna sin desbordamiento horizontal en pantallas estrechas.
+- La posición vertical se conserva para cualquier formulario o enlace que
+  recargue la misma ruta; las carpetas, páginas y fichas rápidas usan el ancla
+  del archivador. La prohibición de saltar arriba queda registrada como regla
+  general para futuros cambios.
+- Las altas y ediciones se probaron sobre una copia temporal de `datos.db`. No
+  se cambió el esquema ni se modificaron los datos reales.
+- Se reconstruyó `Relaciones.exe` (28,9 MB), se comprobó su arranque autónomo y
+  sus rutas principales, y se volvió a abrir la app actualizada en el puerto
+  9765 con las 11 personas de la base real.
+
+### 2026-07-28 — Fichas de un vistazo, selectores y tarjetas en la red
+
+- Las carpetas enseñan cinco personas por página. La lista ocupa toda la altura
+  útil de la tarjeta y su paginación permanece fija al pie incluso cuando sólo
+  hay una página.
+- La ficha rápida del archivador se rediseñó como una tarjeta modular: foto e
+  identidad comparten altura y quedan separados de hablamos hace, cosas en
+  marcha, última quedada, datos, relaciones y acciones. No crea desplazamiento
+  interno.
+- Las relaciones iniciales de una persona usan un buscador integrado en vez del
+  desplegable nativo. Las filas añadidas heredan el buscador y generan sus
+  referencias accesibles sin duplicar identificadores.
+- Apuntar sustituyó las sugerencias nativas del canal por una lista propia que
+  sigue admitiendo texto libre. La selección de personas muestra nueve por
+  página en escritorio y seis en móvil, con las flechas siempre debajo; el pie
+  dejó de tapar la última fila.
+- En la red, cada nombre visible forma una tarjeta con foto a la izquierda —o
+  un cuadrado de tinta— y nombre a la derecha. Al seleccionar, la tarjeta crece
+  y se invierte, y el resto de la red baja de contraste sin cambiar de lugar.
+- La ficha de la portada se convirtió en una tarjeta de identificación compacta
+  con cosas en marcha, **Datos**, última quedada y relaciones. En escritorio
+  cabe sin barra exterior; en móvil usa la barra integrada sólo si hace falta.
+- Se comprobaron búsquedas, clonación de relaciones, páginas, selección y
+  adaptación móvil sobre una copia temporal de `datos.db`. No se cambió el
+  esquema ni se modificaron los datos reales.
+- Se reconstruyó y verificó `Relaciones.exe` (29,4 MB) con los nuevos recursos;
+  responde correctamente, conserva las 12 personas de la base actual y sigue
+  excluyendo NumPy.
+
+### 2026-07-28 — Ritmo visual, archivador inmóvil y relaciones en ambos sentidos
+
+- Los nombres de la red vuelven a ser texto suelto junto a puntos pequeños: se
+  retiraron de la red las fotos, los fondos rectangulares y el crecimiento de
+  esas tarjetas. La ficha flotante conserva su foto opcional y sus datos.
+- Se añadió un gris secundario, también adaptado al modo noche, sólo para
+  metadatos: círculo, recuentos, fechas, nombre completo y papel de una
+  relación. Los títulos, el cuerpo, los controles y los filetes siguen usando
+  papel y tinta.
+- Se compactó la distancia entre el nombre de una carpeta y su recuento. Las
+  relaciones de las fichas rápida, completa y de la portada comparten ahora la
+  misma familia tipográfica; su papel queda en cursiva y en el gris secundario.
+- La ficha rápida perdió el filete vertical innecesario entre la inicial o foto
+  y el nombre. También se unificaron los márgenes de cabecera, módulos y
+  acciones de la ficha de la portada.
+- Carpetas, personas, flechas y búsqueda del archivador se actualizan sin
+  recargar la página, sin conservar el `#archivo` en el historial dinámico y
+  restaurando la posición exacta. Se comprobó con clics reales que la ventana
+  permanece inmóvil al cambiar de carpeta, persona y página.
+- La paginación de *Con quién* conserva su filete superior también en la última
+  página.
+- Se corrigió un único dato existente: una relación de pareja tenía la misma
+  etiqueta en los dos sentidos y pasó a decir lo que corresponde en cada ficha.
+  Se comprobó el sentido en las fichas rápidas, completas y en la portada; no
+  se cambió el esquema ni otro dato.
+- Se revisaron alineación y desbordamiento en escritorio y móvil. Se
+  reconstruyó `Relaciones.exe` (29,4 MB) y se comprobó de forma autónoma en el
+  puerto 9765: salud, recursos, 12 personas y la relación inversa correcta.
+
+### 2026-07-28 — Identidad limpia y jerarquía en las fichas compactas
+
+- Se retiraron los rótulos visibles *Ficha rápida* del archivador y *Persona
+  seleccionada* de la portada: la foto, el nombre y el círculo ya identifican
+  con claridad el bloque.
+- En la ficha completa, `PERSONA / 0000` se movió encima de la identidad. Foto,
+  nombre y círculo quedan debajo en una misma línea visual y centrados entre sí,
+  también en móvil.
+- Las fichas compactas distinguen mejor sus capas: rótulos a 10px con espaciado
+  amplio y un cuadrado de tinta, recuentos en gris y contenido serif a 15–17px
+  con más separación vertical.
+- Las relaciones del archivador, la portada y la ficha completa usan de nuevo
+  Departure Mono tanto para el nombre como para el papel. El papel baja a 10px
+  y conserva el gris secundario, sin cursiva.
+- Se comprobaron la carga de todas las plantillas, las versiones de los
+  recursos, la ausencia de los dos rótulos y la estructura de identidad en una
+  copia aislada. `Relaciones.exe` (29,4 MB) se reconstruyó y respondió
+  correctamente en el puerto 9765 con estos recursos.
+
+### 2026-07-28 — Borrados seguros y modo noche descansado
+
+- Los títulos de los módulos compactos suben a 11px y mantienen tinta plena;
+  los recuentos y otros metadatos siguen siendo los únicos textos en gris.
+  *Última quedada* deja así de confundirse con información secundaria.
+- Cada elemento de *En marcha* ofrece ahora **Ya está** y **Eliminar**. El
+  borrado pide confirmación y vuelve a `#atencion`, sin mandar la ficha arriba.
+- El control **Editar** de una relación tiene fondo propio y permanece visible
+  cuando se señala la fila. Su editor incluye **Eliminar relación**, con una
+  confirmación que explica que desaparece de las dos fichas y vuelve a
+  `#relaciones`.
+- El modo noche abandona la inversión negra y crema pura: usa carbón cálido,
+  crema apagada, una capa intermedia para tarjetas, selecciones gris oscuro y
+  filetes suavizados. Texto, información secundaria, selección y límites
+  conservan contrastes de 10,8:1, 6,1:1, 9,3:1 y 3:1 respectivamente.
+- Se renderizaron todas las plantillas y se probaron ambos borrados sobre una
+  copia de `datos.db`; las redirecciones conservaron sus anclas y la base real
+  quedó intacta. El ejecutable autónomo se reconstruyó y respondió con las
+  pantallas, acciones y estilos nuevos.
+
+### 2026-07-28 — Corrección del rótulo «Última quedada»
+
+- Se corrigió la colisión que hacía que una cabecera con un solo elemento
+  coincidiera también con la regla gris de los recuentos. Ahora esa regla sólo
+  actúa cuando existe un segundo elemento real y *Última quedada* conserva
+  tinta plena, igual que *Datos* y *Relaciones*.
+- Se cambió la versión del CSS para impedir que la ventana reutilice el estilo
+  anterior desde la caché.
+- En la portada nocturna, buscador, lista de círculos y controles de cámara
+  comparten ahora la misma capa de carbón. Se retiraron los rectángulos más
+  negros que cortaban visualmente el panel; ayuda, estado y ficha flotante usan
+  el mismo sistema, y los estados señalados suben sólo un paso de luminosidad.
+- La revisión se extendió a toda la aplicación: barra, paneles, formularios,
+  listas, fichas, selector de personas, pie de Apuntar y Ajustes comparten una
+  única capa nocturna. Las cabeceras informativas ya no forman bandas grises;
+  sólo las acciones y selecciones cambian de fondo.
+- Los controles nativos respetan también el modo elegido; iconos del calendario,
+  flechas y menús dejan de conservar piezas negras propias del modo claro.
+- **Eliminar** pasa a ser una acción secundaria gris, incluida **Eliminar
+  relación**. Se distingue de **Ya está** y de las acciones principales sin
+  añadir un color de alarma ajeno a la estética 1-bit.
+- Se recorrieron en un navegador real Red, Personas, ficha completa, Apuntar y
+  Ajustes, además de Personas en móvil. En noche, la auditoría de todos los
+  elementos visibles sólo encontró la capa común `#2b2c27` y la selección
+  `#3a3b35`; no quedó desplazamiento horizontal en 390px. En día se comprobó
+  que *Última quedada* devuelve tinta `#14120f` a 11px.
+- `Relaciones.exe` se reconstruyó (28,9 MB), se probó de forma autónoma y
+  sustituyó a la versión abierta. La app se reinició en el puerto 9765 con sus
+  12 personas y seis círculos intactos.
+
+### 2026-07-28 — Acciones alineadas al editar relaciones
+
+- **Eliminar relación** y **Guardar cambios** comparten ahora una sola fila:
+  eliminar queda a la izquierda con el gris secundario del resto de borrados y
+  guardar a la derecha como acción principal. Ambos tienen también la misma
+  altura visual de 40 px.
+- Los formularios siguen siendo independientes. El botón derecho envía el
+  formulario de edición mediante su identificador y el izquierdo conserva la
+  confirmación antes de borrar en las dos fichas.
+- Se comprobó en navegador a ancho de escritorio y a 390 px: los dos botones
+  empiezan en la misma coordenada vertical, no desbordan y **Guardar cambios**
+  termina en el borde derecho. `Relaciones.exe` se reconstruyó, se verificó
+  aparte y sustituyó a la versión abierta; la app volvió a arrancar en el
+  puerto 9765 con sus 12 personas, seis círculos y `datos.db` sin cambios.
+
+### 2026-07-28 — Fondo continuo en las fichas durante la noche
+
+- La regla nocturna general estaba acumulando el gris de capa en los apartados,
+  las tarjetas de *En marcha* y sus filas. En las fichas individuales esos
+  contenedores recuperan ahora el mismo carbón del fondo general.
+- El gris auxiliar se reserva para controles y superficies interactivas. Las
+  secciones vuelven a separarse mediante espacio y filetes, sin rectángulos
+  tonales detrás de *En marcha*, *Quedadas*, *Datos* o *Relaciones*.
+- La ficha completa se revisó en navegador tanto en escritorio como a 390 px:
+  sus cuatro apartados y las dos tarjetas usan exactamente el mismo fondo que
+  la página, mientras campos y controles conservan la capa diferenciada; no hay
+  desbordamiento horizontal. `Relaciones.exe` se reconstruyó, se probó aparte
+  y se volvió a abrir en el puerto 9765 con 12 personas, seis círculos y
+  `datos.db` sin cambios.
+
+### 2026-07-28 — Noche sin capa intermedia
+
+- Desapareció el gris de capa del modo noche: paneles, apartados, campos,
+  botones, listas de círculos, tarjetas y los recuadros de la red comparten
+  ahora exactamente el mismo fondo que la página, igual que ocurre de día. Las
+  cajas se distinguen sólo por su filete y por el aire, sin rectángulos más
+  claros alrededor.
+- La variable `--capa` se quedó con un único valor, el del papel, así que la
+  regla que ya devolvía el fondo a la ficha individual se volvió innecesaria y
+  se retiró.
+- Siguen invirtiéndose únicamente las acciones y lo señalado: el cuadrado de
+  tinta, el destino actual de la navegación, los botones sólidos y los
+  desplegables abiertos.
+- Se comprobó en un navegador real, sobre una instancia de prueba en el puerto
+  9770 levantada desde el código y cerrada después por su puerto: en Red,
+  Personas, ficha, Apuntar y Ajustes ningún elemento nocturno conserva un fondo
+  propio salvo esas acciones. No se tocó la base de datos ni el esquema.
+
+### 2026-07-30 — Puerto fijo para llegar desde el móvil
+
+- El puerto deja de buscarse: es siempre el 9765. `PUERTO_BASE` e
+  `INTENTOS_PUERTO` se sustituyeron por una sola constante `PUERTO`, y
+  `puerto_libre()` pasó a llamarse `comprobar_puerto()`, que ya no recorre un
+  rango sino que comprueba ese puerto y nada más.
+- Si el 9765 está ocupado, la app dice cuál es y que no usa ningún otro, y no
+  arranca. Antes saltaba al siguiente libre y la dirección guardada en el móvil
+  dejaba de servir sin avisar. En el ejecutable el aviso sale en ventana, porque
+  `mostrar_error` recoge también `SystemExit`.
+- Desapareció el aviso «el puerto estaba ocupado, uso el N», que ya no puede
+  ocurrir.
+- El motivo es Tailscale: la dirección del móvil apunta a un puerto concreto y
+  no puede cambiar de un arranque a otro.
+- Se revisó de paso que uvicorn ya escuchaba en `0.0.0.0` desde antes, y que la
+  llave de red ya se generaba una sola vez y se guardaba en `ajuste`. Ninguna de
+  las dos cosas necesitaba cambio; la llave sigue siendo la misma en todos los
+  arranques.
+- No se tocó la base de datos ni el esquema.

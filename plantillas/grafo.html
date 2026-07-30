@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block titulo %}Red · Relaciones{% endblock %}
+{% block clase_body %}portada{% endblock %}
+
+{% block cuerpo %}
+<main class="grafo" id="contenido">
+  <canvas id="lienzo" tabindex="0" aria-label="Red tridimensional de personas. Arrastra con el botón izquierdo para girar, con el derecho o central para desplazarte, usa la rueda para acercar y selecciona un punto para ver a esa persona."></canvas>
+
+  <section class="grafo-mandos" aria-label="Explorar la red">
+    <div class="ventana-titulo">
+      <span>EXPLORAR LA RED</span>
+      <span aria-hidden="true">···</span>
+    </div>
+    <div class="grafo-mandos-cuerpo">
+      <label for="grafo-buscar">Buscar una persona</label>
+      <div class="buscar-con-limpiar">
+        <input id="grafo-buscar" type="text" autocomplete="off" placeholder="Escribe un nombre"
+               aria-controls="grafo-resultados" aria-autocomplete="list">
+        <button id="grafo-limpiar" type="button" aria-label="Borrar búsqueda" hidden>×</button>
+      </div>
+      <div class="resultados-integrados" id="grafo-resultados" role="listbox" hidden></div>
+
+      <div class="grafo-circulos">
+        <div class="grafo-mandos-subtitulo">
+          <span>Círculos</span>
+          <button id="grafo-todos" class="accion-texto" type="button">Ver todos</button>
+        </div>
+        <div id="grafo-circulos" class="grafo-circulos-lista" aria-label="Mostrar personas de un círculo"></div>
+      </div>
+
+      <div class="grafo-botones" aria-label="Vista">
+        <button id="grafo-menos" type="button" aria-label="Alejar">−</button>
+        <button id="grafo-mas" type="button" aria-label="Acercar">+</button>
+        <button id="grafo-centrar" type="button">Centrar</button>
+        <button id="grafo-movimiento" type="button" aria-pressed="true">Pausar</button>
+      </div>
+    </div>
+  </section>
+
+  <details class="grafo-ayuda">
+    <summary>Cómo moverte</summary>
+    <p>Arrastra con el botón izquierdo para girar. Usa el derecho o el central para desplazarte hasta el límite de la red y la rueda para acercarte. Las flechas desplazan; con Mayúsculas, giran. Pulsa Centrar para volver al inicio.</p>
+  </details>
+
+  <aside class="grafo-ficha" id="ficha" aria-live="polite" aria-label="Persona seleccionada">
+    <button class="grafo-cerrar" id="grafo-cerrar" type="button" aria-label="Cerrar">×</button>
+    <div id="ficha-contenido"></div>
+  </aside>
+
+  <div class="grafo-estado" id="grafo-estado">
+    <span>{{ cuantas_personas }} {{ 'persona' if cuantas_personas == 1 else 'personas' }}</span>
+    <span>{{ cuantos_circulos }} {{ 'círculo' if cuantos_circulos == 1 else 'círculos' }}</span>
+    <span id="grafo-mensaje" aria-live="polite">Toda la red</span>
+    {% if cuantas_personas < 2 %}<a href="/personas">Añadir personas</a>{% endif %}
+  </div>
+</main>
+<script src="/estatico/grafo.js?v=20260728f"></script>
+{% endblock %}

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es" data-modo="dia">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Relaciones{% endblock %}</title>
+  <link rel="stylesheet" href="/estatico/estilo.css?v=20260728n">
+  <script src="/estatico/app.js?v=20260728f"></script>
+</head>
+<body class="{% block clase_body %}{% endblock %}">
+  <a class="saltar" href="#contenido">Saltar al contenido</a>
+  <header class="barra">
+    <a class="marca" href="/" aria-label="Relaciones, abrir la red">
+      <span class="marca-pixel" aria-hidden="true">◆</span>
+      <span>RELACIONES</span>
+    </a>
+    <nav aria-label="Principal">
+      <a href="/"{% if request.url.path == '/' %} aria-current="page"{% endif %}>Red</a>
+      <a href="/personas"{% if request.url.path.startswith('/persona') %} aria-current="page"{% endif %}>Personas</a>
+      <a class="nav-apuntar" data-atajo-n href="/nota?volver={{ request.url.path }}{% if request.url.query %}%3F{{ request.url.query }}{% endif %}{% if p is defined %}&amp;persona={{ p.id }}{% endif %}"{% if request.url.path == '/nota' %} aria-current="page"{% endif %}>Apuntar <kbd>N</kbd></a>
+      <a href="/ajustes"{% if request.url.path == '/ajustes' %} aria-current="page"{% endif %}>Ajustes</a>
+    </nav>
+  </header>
+
+  {% block cuerpo %}
+  <main class="hoja" id="contenido"{% block acento %}{% endblock %}>{% block contenido %}{% endblock %}</main>
+  {% endblock %}
+</body>
+</html>

@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% block titulo %}Personas · Relaciones{% endblock %}
+{% block clase_body %}pagina-personas{% endblock %}
+
+{% block contenido %}
+<header class="pagina-cabecera">
+  <div>
+    <p class="sobrelinea">ARCHIVO DE PERSONAS</p>
+    <h1 class="titulo">Personas</h1>
+    <p class="entradilla">Encuentra a alguien o abre una carpeta para recorrer tu gente.</p>
+  </div>
+</header>
+
+<details class="anadir alta-archivo">
+  <summary>
+    <span>Añadir persona</span>
+    <span class="alta-resumen">NOMBRE · CÍRCULO · RELACIONES</span>
+  </summary>
+  <form method="post" action="/persona">
+    <input type="hidden" name="volver" value="/personas#archivo">
+
+    <section class="alta-bloque">
+      <div class="alta-bloque-titulo">
+        <h2>Quién es</h2>
+        <span>01</span>
+      </div>
+      <div class="campos alta-identidad">
+        <div>
+          <label for="persona-nueva">Cómo se llama</label>
+          <input id="persona-nueva" type="text" name="nombre" autocomplete="off" required>
+        </div>
+        <div>
+          <label for="persona-apodo">Cómo le llamas</label>
+          <input id="persona-apodo" type="text" name="apodo" autocomplete="off">
+        </div>
+        <div>
+          <label for="persona-circulo">Círculo</label>
+          <select id="persona-circulo" name="circulo_id">
+            <option value="">Sin círculo</option>
+            {% for c in circulos %}<option value="{{ c.id }}">{{ c.nombre }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <section class="alta-bloque">
+      <div class="alta-bloque-titulo">
+        <h2>Relaciones iniciales</h2>
+        <span>02</span>
+      </div>
+      <p class="alta-ayuda">Puedes dejarlo vacío o enlazarla ya con una o varias personas.</p>
+      <div class="alta-relaciones" data-relaciones-alta>
+        <div class="alta-relacion-fila" data-relacion-alta>
+          <div class="selector-persona selector-persona-alta" data-selector-persona data-selector-opcional>
+            <label>Persona</label>
+            <div class="selector-desplegable">
+              <div class="buscar-con-limpiar">
+                <input type="text" data-selector-buscar autocomplete="off"
+                       placeholder="Busca por nombre" aria-expanded="false"
+                       aria-autocomplete="list" role="combobox">
+                <button type="button" data-selector-limpiar aria-label="Borrar búsqueda" hidden>×</button>
+              </div>
+              <div class="selector-resultados" role="listbox" hidden>
+                {% for p in personas_alta %}
+                <button type="button" role="option" aria-selected="false"
+                        data-id="{{ p.id }}">
+                  <span>{{ p.nombre_visible }}</span>
+                  {% if p.circulo %}<span class="donde">{{ p.circulo }}</span>{% endif %}
+                </button>
+                {% endfor %}
+              </div>
+            </div>
+            <input type="hidden" name="otras" data-selector-valor>
+            <p class="selector-eleccion" data-selector-eleccion>Opcional: elige una persona.</p>
+          </div>
+          <label>
+            <span>Qué es para la nueva persona</span>
+            <input type="text" name="etiquetas" autocomplete="off" placeholder="Amiga, madre, compañera…">
+          </label>
+          <label>
+            <span>Qué será la nueva persona para ella</span>
+            <input type="text" name="inversas" autocomplete="off" placeholder="Amiga, hija, compañera…">
+          </label>
+          <button class="discreto" type="button" data-quitar-relacion hidden>Quitar</button>
+        </div>
+      </div>
+      <button type="button" data-anadir-relacion>Añadir otra relación</button>
+    </section>
+
+    <div class="alta-acciones">
+      <button class="boton-solido" type="submit">Crear persona</button>
+      <span>Después podrás completar su ficha.</span>
+    </div>
+  </form>
+</details>
+
+<section class="archivador{% if persona_solicitada %} con-seleccion{% endif %}" id="archivo">
+  <nav class="archivo-carpetas" aria-label="Círculos">
+    <div class="archivo-columna-titulo">
+      <span>CARPETAS</span>
+      <span>{{ carpetas|length + 2 }}</span>
+    </div>
+    <a href="/personas#archivo"{% if not circulo %} aria-current="page"{% endif %}>
+      <span class="carpeta-icono" aria-hidden="true"></span>
+      <span class="carpeta-texto"><strong>Todas</strong><small>{{ total_personas }} {{ 'persona' if total_personas == 1 else 'personas' }}</small></span>
+    </a>
+    {% for c in carpetas %}
+    <a href="/personas?circulo={{ c.id }}#archivo"{% if circulo == c.id|string %} aria-current="page"{% endif %}>
+      <span class="carpeta-icono" aria-hidden="true"></span>
+      <span class="carpeta-texto"><strong>{{ c.nombre }}</strong><small>{{ c.personas }} {{ 'persona' if c.personas == 1 else 'personas' }}</small></span>
+    </a>
+    {% endfor %}
+    <a href="/personas?circulo=ninguno#archivo"{% if circulo == 'ninguno' %} aria-current="page"{% endif %}>
+      <span class="carpeta-icono" aria-hidden="true"></span>
+      <span class="carpeta-texto"><strong>Sin círculo</strong><small>{{ sin_circulo }} {{ 'persona' if sin_circulo == 1 else 'personas' }}</small></span>
+    </a>
+  </nav>
+
+  <section class="archivo-listado" aria-labelledby="archivo-listado-titulo">
+    <div class="archivo-columna-titulo">
+      <h2 id="archivo-listado-titulo">{{ carpeta_actual }}</h2>
+      <span>{{ total_encontradas }}</span>
+    </div>
+    <form class="archivo-busqueda" method="get" action="/personas#archivo">
+      {% if circulo %}<input type="hidden" name="circulo" value="{{ circulo }}">{% endif %}
+      <label for="q">Buscar en esta carpeta</label>
+      <div class="buscar-con-limpiar">
+        <input id="q" type="search" name="q" value="{{ q }}" placeholder="Un nombre o apodo">
+        {% if q %}<a href="{{ enlace_carpeta_actual }}#archivo" aria-label="Borrar búsqueda">×</a>{% endif %}
+      </div>
+    </form>
+    {% if personas %}
+    <ul class="archivo-personas">
+      {% for p in personas %}
+      <li>
+        <a href="{{ enlaces_persona[p.id] }}"{% if persona_resumen and persona_resumen.id == p.id %} aria-current="true"{% endif %}>
+          <span class="persona-identidad">
+            <span class="nombre">{{ p.nombre_visible }}</span>
+            {% if p.circulo %}<span class="donde">{{ p.circulo }}</span>{% endif %}
+          </span>
+          <span class="cuando">{{ p.ultima_fecha|hace }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="vacio">Aún no hay nadie con esos filtros.</p>
+    {% endif %}
+
+    <nav class="archivo-paginacion" aria-label="Páginas de personas">
+      {% if enlace_anterior %}
+      <a href="{{ enlace_anterior }}" aria-label="Personas anteriores">←</a>
+      {% else %}
+      <span class="paginacion-inactiva" aria-hidden="true">←</span>
+      {% endif %}
+      <span>PÁGINA {{ pagina_personas }} / {{ paginas_personas }}</span>
+      {% if enlace_siguiente %}
+      <a href="{{ enlace_siguiente }}" aria-label="Personas siguientes">→</a>
+      {% else %}
+      <span class="paginacion-inactiva" aria-hidden="true">→</span>
+      {% endif %}
+    </nav>
+  </section>
+
+  <aside class="archivo-ficha" aria-label="Ficha rápida">
+    {% if persona_resumen %}
+    <a class="archivo-volver" href="{{ enlace_sin_persona }}#archivo">← Volver a las personas</a>
+    <header class="archivo-ficha-cabecera">
+      <div class="archivo-ficha-foto">
+        {% if persona_resumen.tiene_foto %}
+        <img src="/persona/{{ persona_resumen.id }}/foto" alt="">
+        {% else %}
+        <span class="archivo-foto-vacia" aria-hidden="true">{{ persona_resumen.nombre_visible[:1]|upper }}</span>
+        {% endif %}
+      </div>
+      <div class="archivo-ficha-identidad">
+        <h2>{{ persona_resumen.nombre_visible }}</h2>
+        {% if persona_resumen.apodo %}<p class="nombre-completo">{{ persona_resumen.nombre }}</p>{% endif %}
+        {% if persona_resumen.circulo %}<span class="donde">{{ persona_resumen.circulo }}</span>{% endif %}
+      </div>
+    </header>
+    <dl class="archivo-vistazo">
+      <div><dt>Hablamos hace</dt><dd>{{ persona_resumen.ultima_fecha|cuanto }}</dd></div>
+      <div><dt>Relaciones</dt><dd>{{ persona_resumen.relaciones }}</dd></div>
+    </dl>
+    {% if persona_resumen.notas_rapidas %}
+    <p class="archivo-nota">{{ persona_resumen.notas_rapidas }}</p>
+    {% endif %}
+    <div class="archivo-en-marcha">
+      <section>
+        <header><span>QUEDA PENDIENTE</span><span>{{ persona_resumen.pendientes }}</span></header>
+        <p>{{ persona_resumen.pendiente_texto or 'No le debes nada ahora mismo.' }}</p>
+      </section>
+      <section>
+        <header><span>PREGUNTAR POR</span><span>{{ persona_resumen.preguntar }}</span></header>
+        <p>{{ persona_resumen.preguntar_texto or 'Nada en marcha ahora mismo.' }}</p>
+      </section>
+    </div>
+    <div class="archivo-modulos">
+      <section class="archivo-ultima">
+        <header><span>ÚLTIMA QUEDADA</span></header>
+        {% if persona_resumen.ultima_quedada %}
+        <p>{{ persona_resumen.ultima_quedada.texto }}</p>
+        <span class="dato">{{ persona_resumen.ultima_quedada.fecha|corta }}{% if persona_resumen.ultima_quedada.canal %} · {{ persona_resumen.ultima_quedada.canal }}{% endif %}</span>
+        {% else %}
+        <p class="vacio">Todavía no habéis coincidido, o no lo has apuntado.</p>
+        {% endif %}
+      </section>
+      <section class="archivo-datos">
+        <header><span>DATOS</span><span>{{ persona_resumen.datos_resumen|length }}</span></header>
+        {% if persona_resumen.datos_resumen %}
+        <ul>{% for dato in persona_resumen.datos_resumen %}<li>{{ dato.texto }}</li>{% endfor %}</ul>
+        {% else %}
+        <p class="vacio">Aún no has apuntado nada suyo.</p>
+        {% endif %}
+      </section>
+      <section class="archivo-relaciones">
+        <header><span>RELACIONES</span><span>{{ persona_resumen.relaciones }}</span></header>
+        {% if persona_resumen.relaciones_resumen %}
+        <ul>{% for relacion in persona_resumen.relaciones_resumen %}<li><span>{{ relacion.nombre }}</span>{% if relacion.etiqueta %}<small>{{ relacion.etiqueta }}</small>{% endif %}</li>{% endfor %}</ul>
+        {% else %}
+        <p class="vacio">No sabemos aún a quién conoce.</p>
+        {% endif %}
+      </section>
+    </div>
+    <div class="archivo-acciones">
+      <a class="boton" href="/nota?volver={{ volver_archivo|urlencode }}&amp;persona={{ persona_resumen.id }}">Apuntar algo</a>
+      <a class="boton boton-solido" href="/persona/{{ persona_resumen.id }}?volver={{ volver_archivo|urlencode }}">Abrir ficha</a>
+    </div>
+    {% else %}
+    <p class="vacio">Elige una carpeta con personas.</p>
+    {% endif %}
+  </aside>
+</section>
+{% endblock %}

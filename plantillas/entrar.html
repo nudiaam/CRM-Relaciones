@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="es" data-modo="dia">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Llave · Relaciones</title>
+  <link rel="stylesheet" href="/estatico/estilo.css?v=20260728n">
+  <script src="/estatico/app.js?v=20260727"></script>
+</head>
+<body>
+  <main class="hoja">
+    <h1 class="titulo">Relaciones</h1>
+    <p class="vacio">Estás entrando desde la red de casa. Hace falta la llave que
+      se imprime en la consola al arrancar.</p>
+    <form method="post" action="/entrar">
+      <input type="hidden" name="volver" value="{{ volver }}">
+      <label for="clave">Llave</label>
+      <input id="clave" type="text" name="clave" autocomplete="off" autofocus>
+      {% if mal %}<p class="dato">Esa no es la llave.</p>{% endif %}
+      <div class="acciones">
+        <button class="boton-solido" type="submit">Entrar</button>
+      </div>
+    </form>
+  </main>
+</body>
+</html>

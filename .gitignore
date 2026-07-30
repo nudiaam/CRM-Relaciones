@@ -1,0 +1,53 @@
+# La base de datos NUNCA se sube: dentro están las personas reales y la llave
+# de red. Se excluye el archivo y todo lo que SQLite deja a su lado (WAL).
+datos.db
+datos.db-wal
+datos.db-shm
+datos.db-journal
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Copias de seguridad y exportaciones: «Guardar una copia de todo» y los zip de
+# copias/ llevan la base entera dentro.
+copias/
+*.zip
+*.bak
+
+# Entorno virtual
+.venv/
+venv/
+env/
+
+# Cachés de Python
+__pycache__/
+*.py[cod]
+
+# El ejecutable y lo que genera PyInstaller al construirlo
+Relaciones.exe
+*.exe
+build/
+dist/
+*.spec
+
+# Registro de fallos de arranque del ejecutable
+relaciones-error.txt
+
+# Datos de la app volcados a mano. Los nombres que hay dentro son del juego de
+# ejemplo, pero es contenido de la base, no código: se queda en el disco.
+temas-borrados-2026-07-25.json
+
+# Encargos viejos. Describen una versión que ya no existe (Hilos, Temas,
+# pantalla de Inicio) y confunden a quien lea el repositorio en otra sesión.
+# Siguen en el disco: sólo quedan fuera del control de versiones.
+contrato-marcado.md
+para-code-2.md
+
+# Sistema operativo y editores
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/

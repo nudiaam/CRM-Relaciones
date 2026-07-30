@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block titulo %}{% if editando %}Editar quedada{% else %}Apuntar algo{% endif %} · Relaciones{% endblock %}
+{% block clase_body %}pagina-nota{% endblock %}
+
+{% block contenido %}
+<header class="pagina-cabecera pagina-cabecera-simple">
+  <div>
+    <p class="sobrelinea">{% if editando %}CAMBIAR QUEDADA{% else %}NUEVA QUEDADA{% endif %}</p>
+    <h1 class="titulo">{% if editando %}Editar quedada{% else %}Apuntar algo{% endif %}</h1>
+    <p class="entradilla">{% if editando %}Corrige lo que pasó, la fecha, el canal o quién estuvo.{% else %}Primero escribe lo que quieres recordar. El resto puede esperar.{% endif %}</p>
+  </div>
+</header>
+
+<form class="nota-formulario" method="post" action="{% if editando %}/nota/{{ nota.id }}{% else %}/nota{% endif %}">
+  <input type="hidden" name="volver" value="{{ volver }}">
+
+  <section class="paso paso-principal">
+    <div class="paso-numero" aria-hidden="true">01</div>
+    <div class="paso-contenido">
+      <label for="texto">Qué ha pasado</label>
+      <textarea id="texto" name="texto" autofocus required placeholder="Escribe aquí lo que quieres recordar…">{{ texto }}</textarea>
+    </div>
+  </section>
+
+  <section class="paso">
+    <div class="paso-numero" aria-hidden="true">02</div>
+    <div class="paso-contenido">
+      <h2>Cuándo y por dónde</h2>
+      <div class="campos">
+        <div>
+          <label for="fecha">Cuándo</label>
+          <input id="fecha" type="date" name="fecha" value="{{ fecha }}">
+        </div>
+        <div>
+          <label for="canal">Por dónde</label>
+          <div class="selector-canal" data-selector-canal>
+            <div class="selector-desplegable">
+              <div class="buscar-con-limpiar">
+                <input id="canal" type="text" name="canal" value="{{ canal }}"
+                       data-canal-buscar autocomplete="off"
+                       placeholder="En persona, llamada…" role="combobox"
+                       aria-controls="canales-resultados" aria-expanded="false"
+                       aria-autocomplete="list">
+                <button type="button" data-canal-limpiar aria-label="Borrar canal" hidden>×</button>
+              </div>
+              <div class="selector-resultados canal-resultados" id="canales-resultados"
+                   role="listbox" hidden>
+                {% for c in canales %}
+                <button type="button" role="option" data-canal="{{ c }}">{{ c }}</button>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="paso">
+    <div class="paso-numero" aria-hidden="true">03</div>
+    <div class="paso-contenido">
+      <div class="paso-titulo">
+        <h2>Con quién</h2>
+        <span id="personas-marcadas" aria-live="polite"></span>
+      </div>
+      {% if personas %}
+      <label for="filtro-personas">Buscar una persona</label>
+      <div class="buscar-con-limpiar">
+        <input id="filtro-personas" type="text" data-filtro autocomplete="off" placeholder="Escribe un nombre">
+        <button type="button" data-limpiar-filtro aria-label="Borrar búsqueda" hidden>×</button>
+      </div>
+      <div class="gente" data-gente-lista>
+        {% for p in personas %}
+        <label data-nombre="{{ (p.nombre_visible ~ ' ' ~ p.nombre)|lower }}">
+          <input type="checkbox" name="personas" value="{{ p.id }}"{% if p.id in marcadas %} checked{% endif %}>
+          <span>{{ p.nombre_visible }}</span>
+          {% if p.circulo %}<span class="donde">{{ p.circulo }}</span>{% endif %}
+        </label>
+        {% endfor %}
+      </div>
+      <nav class="gente-paginacion" data-gente-paginacion aria-label="Páginas de personas">
+        <button type="button" data-gente-anterior aria-label="Personas anteriores">←</button>
+        <span data-gente-pagina>PÁGINA 1 / 1</span>
+        <button type="button" data-gente-siguiente aria-label="Personas siguientes">→</button>
+      </nav>
+      {% else %}
+      <p class="vacio">Aún no hay nadie. Puedes escribir un nombre debajo.</p>
+      {% endif %}
+
+      <details class="anadir">
+        <summary>Alguien que todavía no está</summary>
+        <label for="nuevas">Nombres separados por comas</label>
+        <input id="nuevas" type="text" name="personas_nuevas" autocomplete="off" placeholder="Ana, Julio">
+      </details>
+    </div>
+  </section>
+
+  <div class="nota-acciones">
+    <button class="boton-solido" type="submit">{% if editando %}Guardar cambios{% else %}Apuntar{% endif %}</button>
+    <a class="boton" href="{{ volver }}">Dejarlo</a>
+    <span class="atajo">CTRL + ENTER</span>
+  </div>
+</form>
+{% endblock %}

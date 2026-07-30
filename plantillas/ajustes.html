@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block titulo %}Ajustes · Relaciones{% endblock %}
+{% block clase_body %}pagina-ajustes{% endblock %}
+
+{% block contenido %}
+<header class="pagina-cabecera">
+  <div>
+    <p class="sobrelinea">PREFERENCIAS Y ORDEN</p>
+    <h1 class="titulo">Ajustes</h1>
+    <p class="entradilla">Cambia cómo se ve la aplicación, ordena tus círculos y guarda una copia de tus datos.</p>
+  </div>
+</header>
+
+<section class="panel ajustes-bloque">
+  <div class="panel-cabecera">
+    <h2>Cómo se ve</h2>
+    <span>EN ESTE APARATO</span>
+  </div>
+  <div class="ajuste-fila">
+    <div>
+      <h3>Día o noche</h3>
+      <p>Se recuerda por separado en cada aparato.</p>
+    </div>
+    <button id="modo" type="button">Noche</button>
+  </div>
+</section>
+
+<section class="panel ajustes-bloque">
+  <div class="panel-cabecera">
+    <h2>Círculos</h2>
+    <span>{{ circulos|length }}</span>
+  </div>
+  <p class="ayuda">Sirven para indicar de dónde conoces a cada persona. En la red puedes señalar cada círculo para encontrar a toda su gente.</p>
+  {% if circulos %}
+  <ul class="circulos-lista">
+    {% for c in circulos %}
+    <li>
+      <form class="circulo-nombre" method="post" action="/circulo/{{ c.id }}">
+        <input type="hidden" name="volver" value="/ajustes">
+        <label class="solo-lectores" for="circulo-{{ c.id }}">Nombre del círculo</label>
+        <input id="circulo-{{ c.id }}" type="text" name="nombre" value="{{ c.nombre }}">
+        <button type="submit">Guardar</button>
+      </form>
+      <div class="circulo-acciones">
+        {% if not loop.first %}
+        <form method="post" action="/circulo/{{ c.id }}/mover">
+          <input type="hidden" name="volver" value="/ajustes">
+          <input type="hidden" name="hacia" value="arriba">
+          <button class="discreto" type="submit" aria-label="Subir {{ c.nombre }}">↑</button>
+        </form>
+        {% endif %}
+        {% if not loop.last %}
+        <form method="post" action="/circulo/{{ c.id }}/mover">
+          <input type="hidden" name="volver" value="/ajustes">
+          <input type="hidden" name="hacia" value="abajo">
+          <button class="discreto" type="submit" aria-label="Bajar {{ c.nombre }}">↓</button>
+        </form>
+        {% endif %}
+        <form method="post" action="/circulo/{{ c.id }}/borrar" data-confirmar="Se quita el círculo «{{ c.nombre }}». La gente que estaba dentro se queda sin círculo, pero no se borra. ¿Seguro?">
+          <input type="hidden" name="volver" value="/ajustes">
+          <button class="discreto" type="submit">Quitar</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="vacio">Ningún círculo todavía.</p>
+  {% endif %}
+  <details class="anadir">
+    <summary>Añadir un círculo</summary>
+    <form method="post" action="/circulo">
+      <input type="hidden" name="volver" value="/ajustes">
+      <label for="circulo-nuevo">Cómo se llama</label>
+      <div class="control-compuesto">
+        <input id="circulo-nuevo" type="text" name="nombre" autocomplete="off" placeholder="Amigos, hípica, universidad…" required>
+        <button class="boton-solido" type="submit">Añadir</button>
+      </div>
+    </form>
+  </details>
+</section>
+
+<section class="panel ajustes-bloque">
+  <div class="panel-cabecera">
+    <h2>Copia de todo</h2>
+    <span>TUS DATOS</span>
+  </div>
+  <div class="ajuste-fila">
+    <div>
+      <h3>Guardar una copia</h3>
+      <p>Descarga todo lo que has apuntado en un archivo. La llave de la red no se incluye.</p>
+    </div>
+    <a class="boton boton-solido" href="/exportar">Guardar copia</a>
+  </div>
+</section>
+{% endblock %}
