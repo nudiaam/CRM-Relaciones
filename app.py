@@ -903,10 +903,18 @@ def borrar_circulo(circulo_id: int, volver: str = Form("/personas")):
 
 QUEDADAS_POR_PAGINA = 10
 
+# Lo que se dice en la ficha cuando una foto no ha llegado a guardarse.
+FALLOS_FOTO = {
+    "pesa": "Esa imagen pesa más de 8 MB. No se ha guardado.",
+    "formato": "No he podido leer esa imagen. Prueba con otra.",
+    "falta": "No se ha podido preparar la imagen en este ordenador.",
+}
+
 
 @app.get("/persona/{persona_id}")
 def ficha(
     request: Request, persona_id: int, pagina: int = 1, volver: str = "",
+    foto: str = "",
 ):
     con = conexion()
     persona = con.execute(
@@ -977,6 +985,7 @@ def ficha(
 
     datos = {
         "p": persona,
+        "fallo_foto": FALLOS_FOTO.get(foto, ""),
         "volver_personas": (
             volver
             if volver.startswith("/personas") and "\n" not in volver
@@ -1035,31 +1044,36 @@ async def cambiar_foto(
 ):
     nueva = None
     cambiar = quitar == "si"
+    fallo = ""
     if not cambiar and foto is not None and foto.filename:
         contenido = await foto.read(MAX_FOTO_BYTES + 1)
-        if len(contenido) <= MAX_FOTO_BYTES:
+        if len(contenido) > MAX_FOTO_BYTES:
+            fallo = "pesa"
+        else:
             try:
                 from PIL import Image, ImageOps
 
                 with Image.open(BytesIO(contenido)) as original:
                     original.load()
-                    cuadrada = ImageOps.fit(
-                        original.convert("L"),
+                    # El móvil guarda la foto girada y anota la vuelta en EXIF.
+                    # Sin esto, los retratos entran tumbados.
+                    derecha = ImageOps.exif_transpose(original)
+                    grises = ImageOps.fit(
+                        derecha.convert("L"),
                         (LADO_FOTO, LADO_FOTO),
                         method=Image.Resampling.LANCZOS,
                     )
-                    un_bit = cuadrada.convert(
-                        "1", dither=Image.Dither.FLOYDSTEINBERG
-                    )
                     salida = BytesIO()
-                    un_bit.save(salida, format="PNG", optimize=True)
+                    grises.save(salida, format="PNG", optimize=True)
                 nueva = (
                     "data:image/png;base64,"
                     + b64encode(salida.getvalue()).decode("ascii")
                 )
                 cambiar = True
-            except (ImportError, OSError, ValueError):
-                pass
+            except ImportError:
+                fallo = "falta"
+            except (OSError, ValueError):
+                fallo = "formato"
     if cambiar:
         con = conexion()
         with con:
@@ -1067,7 +1081,10 @@ async def cambiar_foto(
                 "UPDATE persona SET foto = ? WHERE id = ?", (nueva, persona_id)
             )
         con.close()
-    return RedirectResponse(f"/persona/{persona_id}", status_code=303)
+    destino = f"/persona/{persona_id}"
+    if fallo:
+        destino += f"?foto={fallo}"
+    return RedirectResponse(destino, status_code=303)
 
 
 @app.post("/persona/{persona_id}")

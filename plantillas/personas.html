@@ -34,11 +34,23 @@
           <input id="persona-apodo" type="text" name="apodo" autocomplete="off">
         </div>
         <div>
-          <label for="persona-circulo">Círculo</label>
-          <select id="persona-circulo" name="circulo_id">
-            <option value="">Sin círculo</option>
-            {% for c in circulos %}<option value="{{ c.id }}">{{ c.nombre }}</option>{% endfor %}
-          </select>
+          <fieldset class="opciones">
+            <legend>Círculo</legend>
+            <div class="opciones-lista">
+              <label class="opcion">
+                <input type="radio" name="circulo_id" value="" checked>
+                <span class="opcion-marca" aria-hidden="true"></span>
+                <span class="opcion-nombre">Sin círculo</span>
+              </label>
+              {% for c in circulos %}
+              <label class="opcion">
+                <input type="radio" name="circulo_id" value="{{ c.id }}">
+                <span class="opcion-marca" aria-hidden="true"></span>
+                <span class="opcion-nombre">{{ c.nombre }}</span>
+              </label>
+              {% endfor %}
+            </div>
+          </fieldset>
         </div>
       </div>
     </section>

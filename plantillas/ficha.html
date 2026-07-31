@@ -2,18 +2,43 @@
 {% block titulo %}{{ p.apodo or p.nombre }} · Relaciones{% endblock %}
 {% block clase_body %}pagina-ficha{% endblock %}
 
-{% macro cosa(h, volver) %}
-<li>
-  <span class="dice">
-    <span>{{ h.texto }}</span>
-    <span class="dato">Desde {{ h.abierto_desde|hace }}</span>
+{#
+  La ficha completa es la comprimida de la red continuada hacia abajo: mismo
+  marco, misma cabecera, misma etiqueta con filete y contador. Lo que no se
+  hereda es la retícula: aquí se lee todo entero y nunca se trunca.
+
+  En reposo no hay un solo botón dentro del contenido. Cada bloque entra en
+  edición por su cuenta, y sólo entonces enseña añadir, cerrar, quitar o
+  editar. La navegación (páginas, enlaces a otra persona) no es edición y se
+  ve siempre.
+#}
+
+{% macro cabecera(etiqueta, cuenta, id, editable=True, abierto=True) %}
+<header class="bloque-cabecera">
+  <button class="bloque-plegar" type="button" aria-expanded="{{ 'true' if abierto else 'false' }}"
+          aria-controls="{{ id }}-cuerpo" data-plegar>
+    <span class="bloque-etiqueta">{{ etiqueta }}</span>
+    <span class="bloque-cuenta">{{ cuenta }}</span>
+    <span class="bloque-signo" aria-hidden="true">{{ '−' if abierto else '+' }}</span>
+  </button>
+  {% if editable %}
+  <button class="bloque-editar" type="button" aria-pressed="false" data-editar>Editar</button>
+  {% endif %}
+</header>
+{% endmacro %}
+
+{% macro hilo_linea(h, volver) %}
+<li class="linea">
+  <span class="linea-texto">
+    {{ h.texto }}
+    <span class="linea-dato">Desde {{ h.abierto_desde|hace }}</span>
   </span>
-  <span class="aparte acciones-hilo">
+  <span class="linea-acciones" data-solo-edicion>
     <form method="post" action="/hilo/{{ h.id }}/cerrar">
       <input type="hidden" name="volver" value="{{ volver }}">
       <button class="discreto" type="submit">Ya está</button>
     </form>
-    <form method="post" action="/hilo/{{ h.id }}/borrar" data-confirmar="Se eliminará esto de En marcha. ¿Seguro?">
+    <form method="post" action="/hilo/{{ h.id }}/borrar" data-confirmar="Se eliminará esto de lo que está en marcha. ¿Seguro?">
       <input type="hidden" name="volver" value="{{ volver }}">
       <button class="discreto accion-eliminar" type="submit">Eliminar</button>
     </form>
@@ -27,10 +52,11 @@
 
 <a class="ficha-regreso" href="{{ volver_personas }}">← Volver al archivador</a>
 
-<header class="ficha-cabecera">
-  <div class="ficha-presentacion">
-    <p class="sobrelinea ficha-etiqueta">PERSONA / {{ "%04d"|format(p.id) }}</p>
-    <div class="ficha-identidad">
+<article class="ficha">
+
+  <section class="bloque bloque-identidad" data-bloque>
+    <p class="ficha-etiqueta">PERSONA / {{ "%04d"|format(p.id) }}</p>
+    <div class="identidad">
       <div class="foto-perfil{% if not p.foto %} foto-vacia{% endif %}">
         {% if p.foto %}
         <img src="/persona/{{ p.id }}/foto" alt="Foto de {{ nombre_visible }}">
@@ -39,305 +65,315 @@
         <span class="solo-lectores">Sin foto</span>
         {% endif %}
       </div>
-      <div class="ficha-identidad-texto">
-        <h1 class="titulo">
-          {{ nombre_visible }}
-          {% if p.apodo %}<span class="nombre-completo">{{ p.nombre }}</span>{% endif %}
-        </h1>
+      <div class="identidad-texto">
+        <h1 class="titulo">{{ nombre_visible }}</h1>
+        {% if p.apodo %}<p class="nombre-completo">{{ p.nombre }}</p>{% endif %}
         {% if p.circulo %}<span class="donde">{{ p.circulo }}</span>{% endif %}
       </div>
     </div>
-  </div>
-  <div class="ficha-acciones">
-    <a class="boton boton-solido ficha-apuntar" href="/nota?volver={{ volver }}&amp;persona={{ p.id }}">Apuntar algo</a>
-    <details class="anadir foto-anadir">
-      <summary>{% if p.foto %}Cambiar foto{% else %}Añadir foto{% endif %}</summary>
+    <div class="identidad-acciones">
+      <a class="boton" href="/nota?volver={{ volver }}&amp;persona={{ p.id }}">Apuntar algo</a>
+      <button class="bloque-editar" type="button" aria-pressed="{{ 'true' if fallo_foto else 'false' }}" data-editar>Editar</button>
+    </div>
+
+    <div class="bloque-edicion" data-solo-edicion{% if fallo_foto %} data-abierto{% endif %}>
       <form method="post" action="/persona/{{ p.id }}/foto" enctype="multipart/form-data">
-        <label for="foto">Una imagen de hasta 8 MB</label>
+        {% if fallo_foto %}<p class="foto-aviso" role="alert">{{ fallo_foto }}</p>{% endif %}
+        <label for="foto">La foto · una imagen de hasta 8 MB</label>
         <input id="foto" type="file" name="foto" accept="image/png,image/jpeg,image/webp,image/gif">
         <div class="acciones">
           <button class="boton-solido" type="submit">Guardar foto</button>
           {% if p.foto %}<button type="submit" name="quitar" value="si">Quitar foto</button>{% endif %}
         </div>
-        <p class="dato">Se recorta en cuadrado y se convierte a blanco y negro de 1 bit.</p>
+        <p class="dato">Se recorta en cuadrado y se guarda en escala de grises.</p>
       </form>
-    </details>
-  </div>
-</header>
 
-<section class="ficha-resumen" aria-label="De un vistazo">
-  <div>
-    <span class="clave">Hablamos hace</span>
-    <span class="valor">{{ p.ultima_fecha|cuanto }}</span>
-  </div>
-  {% if p.ultimo_canal %}
-  <div>
-    <span class="clave">Por dónde</span>
-    <span class="valor">{{ p.ultimo_canal }}</span>
-  </div>
-  {% endif %}
-  {% if p.cumple %}
-  <div>
-    <span class="clave">Cumple</span>
-    <span class="valor">{{ p.cumple|cumple }}</span>
-  </div>
-  {% endif %}
-</section>
-
-{% if p.notas_rapidas %}<p class="nota-rapida">{{ p.notas_rapidas }}</p>{% endif %}
-
-<section class="apartado ficha-atencion" id="atencion">
-  <div class="apartado-titulo">
-    <div class="panel-cabecera">
-      <h2>En marcha</h2>
-      <span>{{ pendientes|length + preguntar|length }}</span>
-    </div>
-    <details class="anadir">
-      <summary>Añadir algo en marcha</summary>
-      <form method="post" action="/persona/{{ p.id }}/hilo">
-        <label for="hilo-texto">Qué quieres recordar</label>
-        <input id="hilo-texto" type="text" name="texto" autocomplete="off" placeholder="Se examina en octubre, pasarle el contacto…" required>
-        <div class="acciones">
-          <button class="boton-solido" type="submit" name="tipo" value="preguntar">Preguntar por</button>
-          <button type="submit" name="tipo" value="pendiente">Queda pendiente</button>
+      <form method="post" action="/persona/{{ p.id }}">
+        <div class="campos">
+          <div><label for="nombre">Cómo se llama</label><input id="nombre" type="text" name="nombre" value="{{ p.nombre }}" required></div>
+          <div><label for="apodo">Cómo le llamas</label><input id="apodo" type="text" name="apodo" value="{{ p.apodo or '' }}"></div>
+          <div>
+            <fieldset class="opciones">
+              <legend>Círculo</legend>
+              <div class="opciones-lista">
+                <label class="opcion">
+                  <input type="radio" name="circulo_id" value=""{% if not p.circulo_id %} checked{% endif %}>
+                  <span class="opcion-marca" aria-hidden="true"></span>
+                  <span class="opcion-nombre">Sin círculo</span>
+                </label>
+                {% for e in circulos %}
+                <label class="opcion">
+                  <input type="radio" name="circulo_id" value="{{ e.id }}"{% if p.circulo_id == e.id %} checked{% endif %}>
+                  <span class="opcion-marca" aria-hidden="true"></span>
+                  <span class="opcion-nombre">{{ e.nombre }}</span>
+                </label>
+                {% endfor %}
+              </div>
+            </fieldset>
+          </div>
+          <div><label for="color">Su color</label><input id="color" type="text" name="color" value="{{ p.color or '' }}" placeholder="#C2452D"></div>
+          <div><label for="cumple">Cumple</label><input id="cumple" type="text" name="cumple" value="{{ p.cumple or '' }}" placeholder="25/07 o 25/07/1980"></div>
+          <div><label for="rapidas">De un vistazo</label><input id="rapidas" type="text" name="notas_rapidas" value="{{ p.notas_rapidas or '' }}"></div>
         </div>
+        <button class="boton-solido" type="submit">Guardar cambios</button>
       </form>
-    </details>
-  </div>
-  <div class="atencion-columnas">
-    <div class="tarjeta-accion prometido">
-      <h3>Queda pendiente <span>{{ pendientes|length }}</span></h3>
+    </div>
+  </section>
+
+  <section class="bloque" data-bloque>
+    {{ cabecera("De un vistazo", "", "vistazo", editable=False) }}
+    <div class="bloque-cuerpo" id="vistazo-cuerpo">
+      <dl class="vistazo">
+        <div>
+          <dt>Hablamos hace</dt>
+          <dd>{{ p.ultima_fecha|cuanto }}</dd>
+        </div>
+        {% if p.ultimo_canal %}
+        <div>
+          <dt>Por dónde</dt>
+          <dd>{{ p.ultimo_canal }}</dd>
+        </div>
+        {% endif %}
+        {% if p.cumple %}
+        <div>
+          <dt>Cumple</dt>
+          <dd>{{ p.cumple|cumple }}</dd>
+        </div>
+        {% endif %}
+      </dl>
+      {% if p.notas_rapidas %}<p class="nota-rapida">{{ p.notas_rapidas }}</p>{% endif %}
+    </div>
+  </section>
+
+  <section class="bloque" id="atencion" data-bloque>
+    {{ cabecera("Queda pendiente", pendientes|length, "pendiente") }}
+    <div class="bloque-cuerpo" id="pendiente-cuerpo">
       {% if pendientes %}
-      <ul class="cosas">{% for h in pendientes %}{{ cosa(h, volver ~ "#atencion") }}{% endfor %}</ul>
+      <ul class="lineas">{% for h in pendientes %}{{ hilo_linea(h, volver ~ "#atencion") }}{% endfor %}</ul>
       {% else %}
       <p class="vacio">No le debes nada ahora mismo.</p>
       {% endif %}
+      <div class="bloque-edicion" data-solo-edicion>
+        <form method="post" action="/persona/{{ p.id }}/hilo">
+          <input type="hidden" name="volver" value="{{ volver }}#atencion">
+          <label for="pendiente-texto">Qué tienes que hacer tú</label>
+          <div class="control-compuesto">
+            <input id="pendiente-texto" type="text" name="texto" autocomplete="off" placeholder="Pasarle el contacto del estudio…" required>
+            <button class="boton-solido" type="submit" name="tipo" value="pendiente">Añadir</button>
+          </div>
+        </form>
+      </div>
     </div>
-    <div class="tarjeta-accion">
-      <h3>Preguntar por <span>{{ preguntar|length }}</span></h3>
+  </section>
+
+  <section class="bloque" data-bloque>
+    {{ cabecera("Preguntar por", preguntar|length, "preguntar") }}
+    <div class="bloque-cuerpo" id="preguntar-cuerpo">
       {% if preguntar %}
-      <ul class="cosas">{% for h in preguntar %}{{ cosa(h, volver ~ "#atencion") }}{% endfor %}</ul>
+      <ul class="lineas">{% for h in preguntar %}{{ hilo_linea(h, volver ~ "#atencion") }}{% endfor %}</ul>
       {% else %}
       <p class="vacio">Nada en marcha ahora mismo.</p>
       {% endif %}
-    </div>
-  </div>
-</section>
-
-<section class="apartado" id="quedadas">
-  <div class="apartado-titulo apartado-titulo-solo">
-    <div class="panel-cabecera">
-      <h2>Quedadas</h2>
-      <span>{{ total_notas }}</span>
-    </div>
-  </div>
-  {% if notas %}
-  <div class="quedadas">
-    {% set volver_quedada = "/persona/" ~ p.id ~ "?pagina=" ~ pagina ~ "#quedadas" %}
-    {% for n in notas %}
-    <article class="quedada">
-      <div class="quedada-fecha">
-        <span>{{ n.fecha|corta }}</span>
-        {% if n.canal %}<span>{{ n.canal }}</span>{% endif %}
-        <a class="editar-enlace" href="/nota/{{ n.id }}?volver={{ volver_quedada|urlencode }}">Editar</a>
-      </div>
-      <div>
-        <p class="escrito">{{ n.texto }}</p>
-        {% set acompanan = quienes.get(n.id, []) | rejectattr('id', 'equalto', p.id) | list %}
-        {% if acompanan %}
-        <div class="chips">{% for q in acompanan %}<a class="chip" href="/persona/{{ q.id }}">{{ q.nombre }}</a>{% endfor %}</div>
-        {% endif %}
-      </div>
-    </article>
-    {% endfor %}
-  </div>
-  {% if paginas > 1 %}
-  <div class="paginas">
-    {% if pagina > 1 %}<a class="boton" href="/persona/{{ p.id }}?pagina={{ pagina - 1 }}">Más nuevas</a>{% endif %}
-    <span class="cuenta">{{ pagina }} / {{ paginas }}</span>
-    {% if pagina < paginas %}<a class="boton" href="/persona/{{ p.id }}?pagina={{ pagina + 1 }}">Más antiguas</a>{% endif %}
-  </div>
-  {% endif %}
-  {% else %}
-  <p class="vacio">Todavía no habéis coincidido, o no lo has apuntado.</p>
-  {% endif %}
-</section>
-
-<section class="apartado" id="datos">
-  <div class="apartado-titulo">
-    <div class="panel-cabecera">
-      <h2>Datos</h2>
-      <span>{{ hechos|length }}</span>
-    </div>
-    <details class="anadir">
-      <summary>Añadir un dato</summary>
-      <form method="post" action="/persona/{{ p.id }}/hecho">
-        <label for="hecho-texto">Algo que no caduca</label>
-        <div class="control-compuesto">
-          <input id="hecho-texto" type="text" name="texto" autocomplete="off" placeholder="Odia el cilantro, su hermana se llama Ana…" required>
-          <button class="boton-solido" type="submit">Añadir</button>
-        </div>
-      </form>
-    </details>
-  </div>
-  {% if hechos %}
-  <ul class="cosas">
-    {% for h in hechos %}
-    <li>
-      <span class="dice">{{ h.texto }}</span>
-      <span class="aparte">
-        <form method="post" action="/hecho/{{ h.id }}/borrar">
-          <button class="discreto" type="submit">Quitar</button>
+      <div class="bloque-edicion" data-solo-edicion>
+        <form method="post" action="/persona/{{ p.id }}/hilo">
+          <input type="hidden" name="volver" value="{{ volver }}#atencion">
+          <label for="preguntar-texto">Algo de su vida por lo que interesarte</label>
+          <div class="control-compuesto">
+            <input id="preguntar-texto" type="text" name="texto" autocomplete="off" placeholder="Se examina en octubre…" required>
+            <button class="boton-solido" type="submit" name="tipo" value="preguntar">Añadir</button>
+          </div>
         </form>
-      </span>
-    </li>
-    {% endfor %}
-  </ul>
-  {% else %}
-  <p class="vacio">Aún no has apuntado nada suyo.</p>
-  {% endif %}
-</section>
-
-<section class="apartado" id="relaciones">
-  <div class="apartado-titulo">
-    <div class="panel-cabecera">
-      <h2>Relaciones</h2>
-      <span>{{ relaciones|length }}</span>
+      </div>
     </div>
-    <details class="anadir">
-      <summary>Enlazar con otra persona</summary>
-      <form method="post" action="/persona/{{ p.id }}/relacion">
-        <div class="campos relaciones-campos">
-          <div class="selector-persona" data-selector-persona>
-            <label for="otra-buscar">Quién</label>
-            <div class="selector-desplegable">
-              <div class="buscar-con-limpiar">
-                <input id="otra-buscar" type="text" data-selector-buscar autocomplete="off"
-                       placeholder="Busca por nombre" aria-controls="otras-personas"
-                       aria-expanded="false" aria-autocomplete="list" role="combobox">
-                <button type="button" data-selector-limpiar aria-label="Borrar búsqueda" hidden>×</button>
-              </div>
-              <div class="selector-resultados" id="otras-personas" role="listbox" tabindex="0" hidden>
-                {% for o in otras %}
-                <button type="button" role="option" aria-selected="false"
-                        data-id="{{ o.id }}" data-nombre="{{ (o.nombre_visible ~ ' ' ~ o.nombre)|lower }}">
-                  <span>{{ o.nombre_visible }}</span>
-                  {% if o.circulo %}<span class="donde">{{ o.circulo }}</span>{% endif %}
-                </button>
-                {% endfor %}
-              </div>
-            </div>
-            <input id="otra" type="hidden" name="otra" data-selector-valor>
-            <p class="selector-eleccion" data-selector-eleccion>Elige una persona de la lista.</p>
-            <noscript>
-              <label for="otra-sin-js">Quién</label>
-              <select id="otra-sin-js" name="otra">
-                <option value="">Elige una persona</option>
-                {% for o in otras %}<option value="{{ o.id }}">{{ o.nombre_visible }}{% if o.circulo %} · {{ o.circulo }}{% endif %}</option>{% endfor %}
-              </select>
-            </noscript>
-          </div>
-          <div>
-            <label for="etiqueta">Qué es <span data-relacion-otra>la otra persona</span> para {{ nombre_visible }}</label>
-            <input id="etiqueta" type="text" name="etiqueta" autocomplete="off" placeholder="Madre, amiga, compañera…" required>
-          </div>
-          <div>
-            <label for="inversa">Qué es {{ nombre_visible }} para <span data-relacion-otra>la otra persona</span></label>
-            <input id="inversa" type="text" name="etiqueta_inversa" autocomplete="off" placeholder="Hijo, amiga, compañera…">
-          </div>
-        </div>
-        <button class="boton-solido" type="submit">Enlazar</button>
-      </form>
-    </details>
-  </div>
-  {% if relaciones %}
-  <div class="relaciones-lista">
-    {% for r in relaciones %}
-    <article class="relacion-registro">
-      <a class="relacion-fila" href="/persona/{{ r.otra_id }}">
-        <span>{{ r.otra_nombre }}</span>
-        <span>{{ r.etiqueta }}</span>
-        <span aria-hidden="true">→</span>
-      </a>
-      <details class="editar-registro">
-        <summary>Editar</summary>
-        <div class="editar-registro-cuerpo">
-          <form id="editar-relacion-{{ r.otra_id }}" method="post" action="/relacion/editar">
-            <input type="hidden" name="persona_a" value="{{ r.persona_a }}">
-            <input type="hidden" name="persona_b" value="{{ r.persona_b }}">
-            <input type="hidden" name="persona_vista" value="{{ p.id }}">
-            <div class="campos">
-              <div>
-                <label for="relacion-{{ r.otra_id }}">Qué es {{ r.otra_nombre }} para {{ nombre_visible }}</label>
-                <input id="relacion-{{ r.otra_id }}" type="text" name="etiqueta" value="{{ r.etiqueta }}" required>
-              </div>
-              <div>
-                <label for="relacion-inversa-{{ r.otra_id }}">Qué es {{ nombre_visible }} para {{ r.otra_nombre }}</label>
-                <input id="relacion-inversa-{{ r.otra_id }}" type="text" name="etiqueta_inversa" value="{{ r.etiqueta_inversa }}">
-              </div>
-            </div>
-          </form>
-          <div class="editar-registro-acciones">
-            <form method="post" action="/relacion/borrar" data-confirmar="Se eliminará esta relación en las dos fichas. ¿Seguro?">
-              <input type="hidden" name="persona_a" value="{{ r.persona_a }}">
-              <input type="hidden" name="persona_b" value="{{ r.persona_b }}">
-              <input type="hidden" name="volver" value="{{ volver }}#relaciones">
-              <button class="discreto accion-eliminar" type="submit">Eliminar relación</button>
+  </section>
+
+  <section class="bloque" id="quedadas" data-bloque>
+    {{ cabecera("Quedadas", total_notas, "quedadas") }}
+    <div class="bloque-cuerpo" id="quedadas-cuerpo">
+      {% if notas %}
+      {% set volver_quedada = "/persona/" ~ p.id ~ "?pagina=" ~ pagina ~ "#quedadas" %}
+      <div class="quedadas">
+        {% for n in notas %}
+        <article class="quedada">
+          <p class="quedada-cuando">
+            <span>{{ n.fecha|corta }}</span>
+            {% if n.canal %}<span>{{ n.canal }}</span>{% endif %}
+            <a class="editar-enlace" href="/nota/{{ n.id }}?volver={{ volver_quedada|urlencode }}" data-solo-edicion>Editar</a>
+          </p>
+          <p class="escrito">{{ n.texto }}</p>
+          {% set acompanan = quienes.get(n.id, []) | rejectattr('id', 'equalto', p.id) | list %}
+          {% if acompanan %}
+          <div class="chips">{% for q in acompanan %}<a class="chip" href="/persona/{{ q.id }}">{{ q.nombre }}</a>{% endfor %}</div>
+          {% endif %}
+        </article>
+        {% endfor %}
+      </div>
+      {% if paginas > 1 %}
+      <div class="paginas">
+        {% if pagina > 1 %}<a class="boton" href="/persona/{{ p.id }}?pagina={{ pagina - 1 }}#quedadas">Más nuevas</a>{% endif %}
+        <span class="cuenta">{{ pagina }} / {{ paginas }}</span>
+        {% if pagina < paginas %}<a class="boton" href="/persona/{{ p.id }}?pagina={{ pagina + 1 }}#quedadas">Más antiguas</a>{% endif %}
+      </div>
+      {% endif %}
+      {% else %}
+      <p class="vacio">Todavía no habéis coincidido, o no lo has apuntado.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="bloque" id="datos" data-bloque>
+    {{ cabecera("Datos", hechos|length, "datos") }}
+    <div class="bloque-cuerpo" id="datos-cuerpo">
+      {% if hechos %}
+      <ul class="lineas">
+        {% for h in hechos %}
+        <li class="linea">
+          <span class="linea-texto">{{ h.texto }}</span>
+          <span class="linea-acciones" data-solo-edicion>
+            <form method="post" action="/hecho/{{ h.id }}/borrar">
+              <button class="discreto" type="submit">Quitar</button>
             </form>
-            <button class="boton-solido" type="submit" form="editar-relacion-{{ r.otra_id }}">Guardar cambios</button>
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="vacio">Aún no has apuntado nada suyo.</p>
+      {% endif %}
+      <div class="bloque-edicion" data-solo-edicion>
+        <form method="post" action="/persona/{{ p.id }}/hecho">
+          <label for="hecho-texto">Algo que no caduca</label>
+          <div class="control-compuesto">
+            <input id="hecho-texto" type="text" name="texto" autocomplete="off" placeholder="Odia el cilantro, su hermana se llama Ana…" required>
+            <button class="boton-solido" type="submit">Añadir</button>
           </div>
-        </div>
-      </details>
-    </article>
-    {% endfor %}
-  </div>
-  {% else %}
-  <p class="vacio">No sabemos aún a quién conoce.</p>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <section class="bloque" id="relaciones" data-bloque>
+    {{ cabecera("Relaciones", relaciones|length, "relaciones") }}
+    <div class="bloque-cuerpo" id="relaciones-cuerpo">
+      {% if relaciones %}
+      <div class="relaciones-lista">
+        {% for r in relaciones %}
+        <article class="relacion-registro">
+          <a class="relacion-fila" href="/persona/{{ r.otra_id }}">
+            <span>{{ r.otra_nombre }}</span>
+            <span class="lazo">{{ r.etiqueta }}</span>
+            <span aria-hidden="true">→</span>
+          </a>
+          <details class="editar-registro" data-solo-edicion>
+            <summary>Editar</summary>
+            <div class="editar-registro-cuerpo">
+              <form id="editar-relacion-{{ r.otra_id }}" method="post" action="/relacion/editar">
+                <input type="hidden" name="persona_a" value="{{ r.persona_a }}">
+                <input type="hidden" name="persona_b" value="{{ r.persona_b }}">
+                <input type="hidden" name="persona_vista" value="{{ p.id }}">
+                <div class="campos">
+                  <div>
+                    <label for="relacion-{{ r.otra_id }}">Qué es {{ r.otra_nombre }} para {{ nombre_visible }}</label>
+                    <input id="relacion-{{ r.otra_id }}" type="text" name="etiqueta" value="{{ r.etiqueta }}" required>
+                  </div>
+                  <div>
+                    <label for="relacion-inversa-{{ r.otra_id }}">Qué es {{ nombre_visible }} para {{ r.otra_nombre }}</label>
+                    <input id="relacion-inversa-{{ r.otra_id }}" type="text" name="etiqueta_inversa" value="{{ r.etiqueta_inversa }}">
+                  </div>
+                </div>
+              </form>
+              <div class="editar-registro-acciones">
+                <form method="post" action="/relacion/borrar" data-confirmar="Se eliminará esta relación en las dos fichas. ¿Seguro?">
+                  <input type="hidden" name="persona_a" value="{{ r.persona_a }}">
+                  <input type="hidden" name="persona_b" value="{{ r.persona_b }}">
+                  <input type="hidden" name="volver" value="{{ volver }}#relaciones">
+                  <button class="discreto accion-eliminar" type="submit">Eliminar relación</button>
+                </form>
+                <button class="boton-solido" type="submit" form="editar-relacion-{{ r.otra_id }}">Guardar cambios</button>
+              </div>
+            </div>
+          </details>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="vacio">No sabemos aún a quién conoce.</p>
+      {% endif %}
+      <div class="bloque-edicion" data-solo-edicion>
+        <form method="post" action="/persona/{{ p.id }}/relacion">
+          <div class="campos relaciones-campos">
+            <div class="selector-persona" data-selector-persona>
+              <label for="otra-buscar">Quién</label>
+              <div class="selector-desplegable">
+                <div class="buscar-con-limpiar">
+                  <input id="otra-buscar" type="text" data-selector-buscar autocomplete="off"
+                         placeholder="Busca por nombre" aria-controls="otras-personas"
+                         aria-expanded="false" aria-autocomplete="list" role="combobox">
+                  <button type="button" data-selector-limpiar aria-label="Borrar búsqueda" hidden>×</button>
+                </div>
+                <div class="selector-resultados" id="otras-personas" role="listbox" tabindex="0" hidden>
+                  {% for o in otras %}
+                  <button type="button" role="option" aria-selected="false"
+                          data-id="{{ o.id }}" data-nombre="{{ (o.nombre_visible ~ ' ' ~ o.nombre)|lower }}">
+                    <span>{{ o.nombre_visible }}</span>
+                    {% if o.circulo %}<span class="donde">{{ o.circulo }}</span>{% endif %}
+                  </button>
+                  {% endfor %}
+                </div>
+              </div>
+              <input id="otra" type="hidden" name="otra" data-selector-valor>
+              <p class="selector-eleccion" data-selector-eleccion>Elige una persona de la lista.</p>
+              <noscript>
+                <label for="otra-sin-js">Quién</label>
+                <select id="otra-sin-js" name="otra">
+                  <option value="">Elige una persona</option>
+                  {% for o in otras %}<option value="{{ o.id }}">{{ o.nombre_visible }}{% if o.circulo %} · {{ o.circulo }}{% endif %}</option>{% endfor %}
+                </select>
+              </noscript>
+            </div>
+            <div>
+              <label for="etiqueta">Qué es <span data-relacion-otra>la otra persona</span> para {{ nombre_visible }}</label>
+              <input id="etiqueta" type="text" name="etiqueta" autocomplete="off" placeholder="Madre, amiga, compañera…" required>
+            </div>
+            <div>
+              <label for="inversa">Qué es {{ nombre_visible }} para <span data-relacion-otra>la otra persona</span></label>
+              <input id="inversa" type="text" name="etiqueta_inversa" autocomplete="off" placeholder="Hijo, amiga, compañera…">
+            </div>
+          </div>
+          <button class="boton-solido" type="submit">Enlazar</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  {% if cerrados %}
+  <section class="bloque" data-bloque>
+    {{ cabecera("Cosas que ya están", cerrados|length, "cerrados", editable=False, abierto=False) }}
+    <div class="bloque-cuerpo" id="cerrados-cuerpo" hidden>
+      <ul class="lineas">
+        {% for h in cerrados %}
+        <li class="linea">
+          <span class="linea-texto">
+            {{ h.texto }}
+            <span class="linea-dato">{{ h.abierto_desde|corta }} → {{ h.cerrado_el|corta }}</span>
+          </span>
+          <span class="linea-acciones">
+            <form method="post" action="/hilo/{{ h.id }}/reabrir">
+              <input type="hidden" name="volver" value="{{ volver }}">
+              <button class="discreto" type="submit">Sigue</button>
+            </form>
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
   {% endif %}
 
-</section>
+</article>
 
-{% if cerrados %}
-<details class="plegado">
-  <summary>Cosas que ya están ({{ cerrados|length }})</summary>
-  <ul class="cosas">
-    {% for h in cerrados %}
-    <li>
-      <span class="dice">{{ h.texto }}<span class="dato">{{ h.abierto_desde|corta }} → {{ h.cerrado_el|corta }}</span></span>
-      <span class="aparte">
-        <form method="post" action="/hilo/{{ h.id }}/reabrir">
-          <input type="hidden" name="volver" value="{{ volver }}">
-          <button class="discreto" type="submit">Sigue</button>
-        </form>
-      </span>
-    </li>
-    {% endfor %}
-  </ul>
-</details>
-{% endif %}
-
-<details class="plegado editar-persona">
-  <summary>Cambiar los datos de {{ nombre_visible }}</summary>
-  <form method="post" action="/persona/{{ p.id }}">
-    <div class="campos">
-      <div><label for="nombre">Cómo se llama</label><input id="nombre" type="text" name="nombre" value="{{ p.nombre }}" required></div>
-      <div><label for="apodo">Cómo le llamas</label><input id="apodo" type="text" name="apodo" value="{{ p.apodo or '' }}"></div>
-      <div>
-        <label for="circulo">Círculo</label>
-        <select id="circulo" name="circulo_id">
-          <option value="">Sin círculo</option>
-          {% for e in circulos %}<option value="{{ e.id }}"{% if p.circulo_id == e.id %} selected{% endif %}>{{ e.nombre }}</option>{% endfor %}
-        </select>
-      </div>
-      <div><label for="color">Su color</label><input id="color" type="text" name="color" value="{{ p.color or '' }}" placeholder="#C2452D"></div>
-      <div><label for="cumple">Cumple</label><input id="cumple" type="text" name="cumple" value="{{ p.cumple or '' }}" placeholder="25/07 o 25/07/1980"></div>
-      <div><label for="rapidas">De un vistazo</label><input id="rapidas" type="text" name="notas_rapidas" value="{{ p.notas_rapidas or '' }}"></div>
-    </div>
-    <button class="boton-solido" type="submit">Guardar cambios</button>
-  </form>
-  <form class="zona-peligrosa" method="post" action="/persona/{{ p.id }}/borrar" data-confirmar="Se va {{ nombre_visible }} con todo lo suyo. Las quedadas se quedan. ¿Seguro?">
-    <p>Esta acción quita a la persona, sus datos y sus asuntos. Las quedadas se conservan.</p>
-    <button type="submit">Quitar a {{ nombre_visible }}</button>
-  </form>
-</details>
+<form class="zona-peligrosa" method="post" action="/persona/{{ p.id }}/borrar" data-confirmar="Se va {{ nombre_visible }} con todo lo suyo. Las quedadas se quedan. ¿Seguro?">
+  <p>Esta acción quita a la persona, sus datos y sus asuntos. Las quedadas se conservan.</p>
+  <button type="submit">Quitar a {{ nombre_visible }}</button>
+</form>
 {% endblock %}

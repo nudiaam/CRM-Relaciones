@@ -585,3 +585,47 @@ nada: primero hay que quitarlas.
   las dos cosas necesitaba cambio; la llave sigue siendo la misma en todos los
   arranques.
 - No se tocó la base de datos ni el esquema.
+
+### 2026-07-30 — El móvil: teclado, gestos y fotos
+
+- **El teclado ya no aparece solo.** Se retiró el `autofocus` del texto de
+  Apuntar y el `.focus()` que lo reforzaba, y el foco al abrir un
+  `details.anadir` o al clonar una fila de relación pasa por `enfocar()`, que
+  no hace nada cuando el puntero es grueso. Con ratón todo sigue igual. El
+  `autofocus` de la pantalla de la llave se conserva a propósito: esa pantalla
+  existe sólo para escribir ahí.
+- **El buscador de la red dejó de secuestrar el foco.** La causa era un
+  `e.preventDefault()` incondicional en el `pointerdown` del lienzo: cancelar
+  ese evento cancela también el traspaso de foco del navegador, así que el
+  campo de búsqueda no lo perdía nunca y Android reabría el teclado en cada
+  toque. Ahora sólo se cancela con ratón, donde evita seleccionar texto al
+  arrastrar; el toque suelta el foco explícitamente. El arrastre no se
+  desmadra porque el lienzo ya llevaba `touch-action: none`.
+- **Gestos táctiles.** Un dedo gira, dos desplazan siguiendo el punto medio y
+  su separación hace zoom. Antes un dedo desplazaba y dos hacían zoom y
+  desplazaban a la vez, porque el pellizco iba por `touchstart`/`touchmove` y
+  el arrastre por los eventos de puntero. Todo pasa ahora por `pointer*`, con
+  los dedos activos en un mapa. El ratón no cambia.
+- **La ficha de la red se ancla debajo de la barra** en pantalla estrecha, en
+  vez de subir desde el pie, y puede tapar *Explorar la red*.
+- **Los filetes de esa ficha llegan a los dos bordes.** Se cortaban 16px antes
+  del derecho porque una regla posterior le ponía `width: calc(100vw - 16px)`
+  mientras otra ya la fijaba con `left: 0; right: 0`.
+- **Explorar la red se pliega.** Su barra de título es ahora un botón con
+  `aria-expanded`; arranca abierto en escritorio y cerrado por debajo de 640px.
+  El estado por defecto lo decide el CSS, así que no hay parpadeo al cargar.
+- **Las fotos pasan a escala de grises.** Se retiró el paso a 1 bit con tramado
+  Floyd–Steinberg: a 256px el umbral destrozaba las caras y estas fotos son
+  para reconocer a alguien de un vistazo. Se sigue recortando en cuadrado a
+  256×256 y guardando dentro de `datos.db`.
+- **Se aplica la orientación EXIF** con `ImageOps.exif_transpose`. Los retratos
+  del móvil entraban tumbados.
+- **Un fallo al guardar una foto se dice en pantalla.** Antes el `except` se lo
+  tragaba y la ficha volvía como si todo hubiera ido bien. Ahora la redirección
+  lleva `?foto=` y la ficha abre el bloque con el motivo: pesa más de 8 MB, no
+  se puede leer la imagen, o falta Pillow.
+- Se subió la versión de `estilo.css`, `app.js` y `grafo.js` a `20260730a` para
+  que el móvil no reutilice los archivos de la caché.
+- No se tocó la base de datos ni el esquema. Ninguna foto existente se
+  reconvierte: las que ya estaban siguen guardadas en 1 bit hasta que se
+  vuelvan a subir.

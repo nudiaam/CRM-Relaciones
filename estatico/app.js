@@ -37,6 +37,14 @@
   try { guardado = localStorage.getItem('modo'); } catch (e) { /* sin localStorage */ }
   if (guardado === 'noche' || guardado === 'dia') raiz.dataset.modo = guardado;
 
+  // En una pantalla táctil, llevar el foco a un campo abre el teclado y tapa
+  // media pantalla. Sólo se enfoca solo cuando hay ratón.
+  function enfocar(campo) {
+    if (!campo) return;
+    if (matchMedia('(pointer: coarse)').matches) return;
+    campo.focus();
+  }
+
   function pinta(boton) {
     boton.textContent = raiz.dataset.modo === 'noche' ? 'Día' : 'Noche';
   }
@@ -52,10 +60,6 @@
         pinta(boton);
       });
     }
-
-    // 2. Foco en el texto de la nota, aunque la ventana no honre autofocus.
-    var texto = document.querySelector('textarea[autofocus]');
-    if (texto) texto.focus();
 
     // 3. Tecla N: apuntar algo desde cualquier sitio. El destino lo calcula el
     //    servidor para conservar la pantalla a la que hay que volver.
@@ -134,7 +138,7 @@
           filtro.value = '';
           paginaActual = 0;
           mostrarPagina();
-          filtro.focus();
+          enfocar(filtro);
         });
       }
       if (anteriorGente) {
@@ -165,11 +169,11 @@
     });
 
     // 7. Al abrir un bloque para añadir, llevar el foco a su primer campo.
+    //    Con el dedo no: abriría el teclado sin haber tocado ninguna caja.
     document.querySelectorAll('details.anadir').forEach(function (detalle) {
       detalle.addEventListener('toggle', function () {
         if (!detalle.open) return;
-        var campo = detalle.querySelector('input:not([type="hidden"]), select, textarea');
-        if (campo) campo.focus();
+        enfocar(detalle.querySelector('input:not([type="hidden"]), select, textarea'));
       });
     });
 
@@ -235,10 +239,9 @@
           filtrarOpciones();
           mostrarResultados(false);
           var fila = selector.closest('[data-relacion-alta]');
-          var siguiente = fila
+          enfocar(fila
             ? fila.querySelector('input[name="etiquetas"]')
-            : (formulario ? formulario.querySelector('input[name="etiqueta"]') : null);
-          if (siguiente) siguiente.focus();
+            : (formulario ? formulario.querySelector('input[name="etiqueta"]') : null));
         });
       });
 
@@ -283,7 +286,7 @@
           nombrarRelacion('');
           filtrarOpciones();
           mostrarResultados(true);
-          buscar.focus();
+          enfocar(buscar);
         });
       }
 
@@ -358,7 +361,7 @@
           buscarCanal.value = '';
           filtrarCanales();
           mostrarCanales(true);
-          buscarCanal.focus();
+          enfocar(buscarCanal);
         });
       }
       document.addEventListener('click', function (ev) {
@@ -410,8 +413,7 @@
         relacionesAlta.appendChild(nueva);
         iniciarSelectorPersona(nueva.querySelector('[data-selector-persona]'));
         actualizarFilasAlta();
-        var primera = nueva.querySelector('[data-selector-buscar], input');
-        if (primera) primera.focus();
+        enfocar(nueva.querySelector('[data-selector-buscar], input'));
       });
 
       relacionesAlta.addEventListener('click', function (ev) {
@@ -423,6 +425,182 @@
       });
       actualizarFilasAlta();
     }
+
+    // 9 bis. La fecha de una quedada. Casi siempre es de estos días, así que
+    //        delante van los atajos y el calendario queda detrás, plegado.
+    //        Todo son botones: desplegarlo no abre el teclado.
+    var campoFecha = document.querySelector('[data-fecha]');
+    if (campoFecha) {
+      var DIAS_CORTOS = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'];
+      var MESES_FECHA = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+        'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+      var ATAJOS = 6;
+
+      // El campo que se envía lo crea el JavaScript: sin él manda el
+      // <noscript>, y así nunca viajan dos «fecha» a la vez.
+      var valorFecha = document.createElement('input');
+      valorFecha.type = 'hidden';
+      valorFecha.name = 'fecha';
+      campoFecha.appendChild(valorFecha);
+
+      var atajos = campoFecha.querySelector('[data-fecha-atajos]');
+      var elegida = campoFecha.querySelector('[data-fecha-elegida]');
+      var abrirFecha = campoFecha.querySelector('[data-fecha-abrir]');
+      var signoFecha = campoFecha.querySelector('[data-fecha-signo]');
+      var calendario = campoFecha.querySelector('[data-fecha-calendario]');
+      var tituloMes = campoFecha.querySelector('[data-fecha-titulo]');
+      var rejilla = campoFecha.querySelector('[data-fecha-dias]');
+
+      function aIso(d) {
+        return d.getFullYear() + '-' +
+          String(d.getMonth() + 1).padStart(2, '0') + '-' +
+          String(d.getDate()).padStart(2, '0');
+      }
+
+      function deIso(iso) {
+        var trozos = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+        if (!trozos) return null;
+        var d = new Date(+trozos[1], +trozos[2] - 1, +trozos[3]);
+        return isNaN(d.getTime()) ? null : d;
+      }
+
+      var hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      var seleccion = deIso(campoFecha.dataset.fechaInicial) || new Date(hoy);
+      var mesVisible = new Date(
+        seleccion.getFullYear(), seleccion.getMonth(), 1
+      );
+
+      function enPalabras(d) {
+        var texto = d.getDate() + ' de ' + MESES_FECHA[d.getMonth()];
+        return d.getFullYear() === hoy.getFullYear()
+          ? texto : texto + ' de ' + d.getFullYear();
+      }
+
+      function boton(iso, texto, clase) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = clase;
+        b.dataset.iso = iso;
+        b.textContent = texto;
+        b.setAttribute('aria-pressed', String(iso === aIso(seleccion)));
+        return b;
+      }
+
+      function pintarAtajos() {
+        atajos.textContent = '';
+        for (var i = 0; i < ATAJOS; i++) {
+          var d = new Date(hoy);
+          d.setDate(hoy.getDate() - i);
+          var nombre = i === 0 ? 'HOY'
+            : i === 1 ? 'AYER'
+            : DIAS_CORTOS[d.getDay()] + ' ' + d.getDate();
+          atajos.appendChild(boton(aIso(d), nombre, 'fecha-atajo'));
+        }
+      }
+
+      function pintarCalendario() {
+        tituloMes.textContent = (
+          MESES_FECHA[mesVisible.getMonth()] + ' ' + mesVisible.getFullYear()
+        ).toUpperCase();
+        rejilla.textContent = '';
+        var anio = mesVisible.getFullYear(), mes = mesVisible.getMonth();
+        var hueco = (new Date(anio, mes, 1).getDay() + 6) % 7;  // lunes primero
+        var cuantos = new Date(anio, mes + 1, 0).getDate();
+        for (var h = 0; h < hueco; h++) {
+          var vacio = document.createElement('span');
+          vacio.className = 'fecha-hueco';
+          rejilla.appendChild(vacio);
+        }
+        for (var dia = 1; dia <= cuantos; dia++) {
+          var iso = aIso(new Date(anio, mes, dia));
+          var celda = boton(iso, String(dia), 'fecha-dia');
+          if (iso === aIso(hoy)) celda.classList.add('es-hoy');
+          rejilla.appendChild(celda);
+        }
+      }
+
+      function pintarFecha() {
+        valorFecha.value = aIso(seleccion);
+        elegida.textContent = enPalabras(seleccion);
+        pintarAtajos();
+        pintarCalendario();
+      }
+
+      function elegirDesde(ev) {
+        var b = ev.target.closest('[data-iso]');
+        if (!b) return;
+        var d = deIso(b.dataset.iso);
+        if (!d) return;
+        seleccion = d;
+        mesVisible = new Date(d.getFullYear(), d.getMonth(), 1);
+        pintarFecha();
+      }
+
+      atajos.addEventListener('click', elegirDesde);
+      rejilla.addEventListener('click', elegirDesde);
+
+      campoFecha.querySelector('[data-fecha-antes]')
+        .addEventListener('click', function () {
+          mesVisible.setMonth(mesVisible.getMonth() - 1);
+          pintarCalendario();
+        });
+      campoFecha.querySelector('[data-fecha-despues]')
+        .addEventListener('click', function () {
+          mesVisible.setMonth(mesVisible.getMonth() + 1);
+          pintarCalendario();
+        });
+
+      abrirFecha.addEventListener('click', function () {
+        var cerrado = calendario.hidden;
+        calendario.hidden = !cerrado;
+        abrirFecha.setAttribute('aria-expanded', String(cerrado));
+        if (signoFecha) signoFecha.textContent = cerrado ? '−' : '+';
+      });
+
+      campoFecha.hidden = false;
+      pintarFecha();
+    }
+
+    // 9 ter. La ficha completa: cada bloque se pliega y entra en edición por su
+    //        cuenta. Abrir uno no abre los demás. El ocultado lo enciende este
+    //        JavaScript, así que sin él la ficha se ve entera, como siempre.
+    document.querySelectorAll('[data-bloque]').forEach(function (bloque) {
+      var plegar = bloque.querySelector('[data-plegar]');
+      var cuerpo = plegar
+        ? document.getElementById(plegar.getAttribute('aria-controls'))
+        : null;
+      var editar = bloque.querySelector('[data-editar]');
+
+      function pintarPliegue(abierto) {
+        plegar.setAttribute('aria-expanded', String(abierto));
+        cuerpo.hidden = !abierto;
+        var signo = plegar.querySelector('.bloque-signo');
+        if (signo) signo.textContent = abierto ? '−' : '+';
+      }
+
+      if (plegar && cuerpo) {
+        plegar.addEventListener('click', function () {
+          pintarPliegue(plegar.getAttribute('aria-expanded') !== 'true');
+        });
+      }
+
+      if (editar) {
+        // Si el servidor manda un aviso, ese bloque arranca ya en edición.
+        var arranca = bloque.querySelector('[data-abierto]') ? 'si' : 'no';
+        bloque.dataset.edicion = arranca;
+        editar.setAttribute('aria-pressed', String(arranca === 'si'));
+
+        editar.addEventListener('click', function () {
+          var editando = bloque.dataset.edicion === 'si';
+          bloque.dataset.edicion = editando ? 'no' : 'si';
+          editar.setAttribute('aria-pressed', String(!editando));
+          // Entrar a editar un bloque plegado lo abre; no tendría sentido
+          // encender los botones de algo que no se ve.
+          if (!editando && cuerpo && cuerpo.hidden) pintarPliegue(true);
+        });
+      }
+    });
 
     // 10. El archivador cambia carpeta, persona y página en el mismo sitio.
     //     Conserva enlaces y formularios normales como respaldo, pero con

@@ -18,7 +18,7 @@
     <div class="paso-numero" aria-hidden="true">01</div>
     <div class="paso-contenido">
       <label for="texto">Qué ha pasado</label>
-      <textarea id="texto" name="texto" autofocus required placeholder="Escribe aquí lo que quieres recordar…">{{ texto }}</textarea>
+      <textarea id="texto" name="texto" required placeholder="Escribe aquí lo que quieres recordar…">{{ texto }}</textarea>
     </div>
   </section>
 
@@ -27,10 +27,34 @@
     <div class="paso-contenido">
       <h2>Cuándo y por dónde</h2>
       <div class="campos">
-        <div>
-          <label for="fecha">Cuándo</label>
-          <input id="fecha" type="date" name="fecha" value="{{ fecha }}">
+        <div class="campo-fecha" data-fecha data-fecha-inicial="{{ fecha }}" hidden>
+          <span class="rotulo-grupo" id="fecha-rotulo">Cuándo</span>
+          <div class="fecha-atajos" role="group" aria-labelledby="fecha-rotulo" data-fecha-atajos></div>
+          <p class="fecha-elegida" aria-live="polite" data-fecha-elegida></p>
+          <button class="fecha-abrir" type="button" aria-expanded="false"
+                  aria-controls="fecha-calendario" data-fecha-abrir>
+            <span data-fecha-signo aria-hidden="true">+</span>
+            <span>Otro día</span>
+          </button>
+          <div class="fecha-calendario" id="fecha-calendario" data-fecha-calendario hidden>
+            <div class="fecha-mes">
+              <button type="button" data-fecha-antes aria-label="Mes anterior">‹</button>
+              <span aria-live="polite" data-fecha-titulo></span>
+              <button type="button" data-fecha-despues aria-label="Mes siguiente">›</button>
+            </div>
+            <div class="fecha-semana" aria-hidden="true">
+              <span>L</span><span>M</span><span>X</span><span>J</span>
+              <span>V</span><span>S</span><span>D</span>
+            </div>
+            <div class="fecha-dias" role="grid" data-fecha-dias></div>
+          </div>
         </div>
+        <noscript>
+          <div>
+            <label for="fecha">Cuándo</label>
+            <input id="fecha" type="date" name="fecha" value="{{ fecha }}">
+          </div>
+        </noscript>
         <div>
           <label for="canal">Por dónde</label>
           <div class="selector-canal" data-selector-canal>

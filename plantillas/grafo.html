@@ -7,11 +7,12 @@
   <canvas id="lienzo" tabindex="0" aria-label="Red tridimensional de personas. Arrastra con el botón izquierdo para girar, con el derecho o central para desplazarte, usa la rueda para acercar y selecciona un punto para ver a esa persona."></canvas>
 
   <section class="grafo-mandos" aria-label="Explorar la red">
-    <div class="ventana-titulo">
+    <button class="ventana-titulo" id="grafo-plegar" type="button"
+            aria-expanded="true" aria-controls="grafo-mandos-cuerpo">
       <span>EXPLORAR LA RED</span>
-      <span aria-hidden="true">···</span>
-    </div>
-    <div class="grafo-mandos-cuerpo">
+      <span data-signo aria-hidden="true">−</span>
+    </button>
+    <div class="grafo-mandos-cuerpo" id="grafo-mandos-cuerpo">
       <label for="grafo-buscar">Buscar una persona</label>
       <div class="buscar-con-limpiar">
         <input id="grafo-buscar" type="text" autocomplete="off" placeholder="Escribe un nombre"
@@ -54,5 +55,5 @@
     {% if cuantas_personas < 2 %}<a href="/personas">Añadir personas</a>{% endif %}
   </div>
 </main>
-<script src="/estatico/grafo.js?v=20260728f"></script>
+<script src="/estatico/grafo.js?v=20260731c"></script>
 {% endblock %}

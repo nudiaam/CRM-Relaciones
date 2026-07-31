@@ -19,6 +19,9 @@
   --inverso-fondo: var(--tinta);
   --inverso-texto: var(--papel);
   --capa: var(--papel);
+  /* Único color de la interfaz, y sólo al señalar un borrado: un rojo
+     rebajado hacia el papel para que no cante entre tanta tinta. */
+  --alarma: #a8452f;
   --mono: "Departure", "Cascadia Mono", Consolas, monospace;
   --lectura: Georgia, "Times New Roman", serif;
   --filete: 1px solid var(--filete-color);
@@ -37,6 +40,7 @@ html[data-modo="noche"] {
   --filete-color: #706d64;
   --inverso-fondo: #3a3b35;
   --inverso-texto: #f0e9d9;
+  --alarma: #d08a76;
 }
 
 html[data-modo="dia"] {
@@ -191,10 +195,16 @@ p {
   letter-spacing: .08em;
 }
 
-.barra nav a:hover,
 .barra nav a[aria-current="page"] {
   color: var(--papel);
   background: var(--tinta);
+}
+
+@media (hover: hover) {
+  .barra nav a:hover {
+  color: var(--papel);
+  background: var(--tinta);
+}
 }
 
 .barra kbd {
@@ -370,11 +380,17 @@ p {
   border-right: var(--filete);
 }
 
-.pestanas a:hover,
-.pestanas a[aria-current="page"],
+.pestanas a[aria-current="page"] {
+  color: var(--papel);
+  background: var(--tinta);
+}
+
+@media (hover: hover) {
+  .pestanas a:hover,
 .ficha-indice a:hover {
   color: var(--papel);
   background: var(--tinta);
+}
 }
 
 .pestanas a span {
@@ -386,10 +402,16 @@ p {
   background: var(--tinta);
 }
 
-.pestanas a[aria-current="page"] span,
-.pestanas a:hover span {
+.pestanas a[aria-current="page"] span {
   color: var(--tinta);
   background: var(--papel);
+}
+
+@media (hover: hover) {
+  .pestanas a:hover span {
+  color: var(--tinta);
+  background: var(--papel);
+}
 }
 
 /* Formularios y controles */
@@ -453,16 +475,24 @@ button,
   cursor: pointer;
 }
 
-button:hover,
-.boton:hover,
 .boton-solido {
   color: var(--papel);
   background: var(--tinta);
 }
 
-.boton-solido:hover {
+@media (hover: hover) {
+  button:hover,
+.boton:hover {
+  color: var(--papel);
+  background: var(--tinta);
+}
+}
+
+@media (hover: hover) {
+  .boton-solido:hover {
   color: var(--tinta);
   background: var(--papel);
+}
 }
 
 .discreto {
@@ -539,11 +569,13 @@ details > summary::-webkit-details-marker {
   content: "[−]";
 }
 
-.anadir > summary:hover,
+@media (hover: hover) {
+  .anadir > summary:hover,
 .busqueda-panel > summary:hover,
 .plegado > summary:hover {
   color: var(--papel);
   background: var(--tinta);
+}
 }
 
 .anadir > form,
@@ -663,9 +695,11 @@ details > summary::-webkit-details-marker {
   padding: 8px 16px;
 }
 
-.persona-fila:hover {
+@media (hover: hover) {
+  .persona-fila:hover {
   color: var(--papel);
   background: var(--tinta);
+}
 }
 
 .persona-identidad .nombre {
@@ -743,12 +777,20 @@ details > summary::-webkit-details-marker {
   letter-spacing: .08em;
 }
 
-.alta-archivo > summary:hover,
 .alta-archivo[open] > summary {
   color: var(--tinta);
   background: var(--papel);
   outline: var(--filete);
   outline-offset: -1px;
+}
+
+@media (hover: hover) {
+  .alta-archivo > summary:hover {
+  color: var(--tinta);
+  background: var(--papel);
+  outline: var(--filete);
+  outline-offset: -1px;
+}
 }
 
 .alta-resumen {
@@ -902,10 +944,16 @@ details > summary::-webkit-details-marker {
   border-bottom: 0;
 }
 
-.archivo-carpetas > a:hover,
 .archivo-carpetas > a[aria-current="page"] {
   color: var(--papel);
   background: var(--tinta);
+}
+
+@media (hover: hover) {
+  .archivo-carpetas > a:hover {
+  color: var(--papel);
+  background: var(--tinta);
+}
 }
 
 .carpeta-icono {
@@ -969,9 +1017,11 @@ details > summary::-webkit-details-marker {
   font-size: 11px;
 }
 
-.archivo-busqueda .buscar-con-limpiar > a:hover {
+@media (hover: hover) {
+  .archivo-busqueda .buscar-con-limpiar > a:hover {
   color: var(--papel);
   background: var(--tinta);
+}
 }
 
 .archivo-personas {
@@ -997,10 +1047,16 @@ details > summary::-webkit-details-marker {
   padding: 12px 16px;
 }
 
-.archivo-personas a:hover,
 .archivo-personas a[aria-current="true"] {
   color: var(--papel);
   background: var(--tinta);
+}
+
+@media (hover: hover) {
+  .archivo-personas a:hover {
+  color: var(--papel);
+  background: var(--tinta);
+}
 }
 
 .archivo-personas .nombre {
@@ -1041,9 +1097,11 @@ details > summary::-webkit-details-marker {
   border-left: var(--filete);
 }
 
-.archivo-paginacion > a:hover {
+@media (hover: hover) {
+  .archivo-paginacion > a:hover {
   color: var(--papel);
   background: var(--tinta);
+}
 }
 
 .paginacion-inactiva {
@@ -1177,8 +1235,10 @@ details > summary::-webkit-details-marker {
   text-decoration: underline;
 }
 
-.ficha-regreso:hover {
+@media (hover: hover) {
+  .ficha-regreso:hover {
   text-decoration-thickness: 2px;
+}
 }
 
 .ficha-cabecera {
@@ -1307,9 +1367,11 @@ details > summary::-webkit-details-marker {
   text-decoration: none;
 }
 
-.editar-enlace:hover {
+@media (hover: hover) {
+  .editar-enlace:hover {
   color: var(--papel);
   background: var(--tinta);
+}
 }
 
 .paginas {
@@ -1346,9 +1408,11 @@ details > summary::-webkit-details-marker {
   line-height: 16px;
 }
 
-.chip:hover {
+@media (hover: hover) {
+  .chip:hover {
   color: var(--papel);
   background: var(--tinta);
+}
 }
 
 .relacion-fila {
@@ -1371,9 +1435,11 @@ details > summary::-webkit-details-marker {
   line-height: 16px;
 }
 
-.relacion-fila:hover {
+@media (hover: hover) {
+  .relacion-fila:hover {
   color: var(--papel);
   background: var(--tinta);
+}
 }
 
 .relacion-registro {
@@ -1407,10 +1473,16 @@ details > summary::-webkit-details-marker {
   line-height: 16px;
 }
 
-.editar-registro > summary:hover,
 .editar-registro[open] > summary {
   color: var(--papel);
   background: var(--tinta);
+}
+
+@media (hover: hover) {
+  .editar-registro > summary:hover {
+  color: var(--papel);
+  background: var(--tinta);
+}
 }
 
 .editar-registro-cuerpo {
@@ -1439,8 +1511,23 @@ details > summary::-webkit-details-marker {
   margin-top: 64px;
 }
 
+/* Borrar a una persona es lo único de la app que destruye datos, así que se
+   marca con la trama binaria arriba y abajo, como una cinta de precinto. La
+   trama deja de ser fondo —recortaba el texto con parches de anchos distintos—
+   y pasa a ser dos bandas de altura fija dentro de una caja con filete. El
+   contenido vuelve a papel limpio, con el mismo relleno de 16px y la misma
+   alineación que el resto de bloques de la ficha. */
 .zona-peligrosa {
   margin-top: 24px !important;
+  background: var(--papel);
+  border: var(--filete);
+}
+
+.zona-peligrosa::before,
+.zona-peligrosa::after {
+  content: "";
+  display: block;
+  height: 12px;
   background-image:
     linear-gradient(135deg, var(--filete-color) 25%, transparent 25%),
     linear-gradient(315deg, var(--filete-color) 25%, transparent 25%);
@@ -1448,15 +1535,27 @@ details > summary::-webkit-details-marker {
   background-size: 8px 8px;
 }
 
-.zona-peligrosa p,
-.zona-peligrosa button {
-  background: var(--papel);
+.zona-peligrosa::before {
+  border-bottom: var(--filete);
+}
+
+.zona-peligrosa::after {
+  border-top: var(--filete);
 }
 
 .zona-peligrosa p {
-  width: fit-content;
-  margin-bottom: 16px;
-  padding: 8px;
+  width: auto;
+  margin: 0;
+  padding: 16px;
+  background: transparent;
+  font-family: var(--lectura);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.zona-peligrosa button {
+  margin: 0 16px 16px;
+  background: var(--papel);
 }
 
 /* Apuntar */
@@ -1540,10 +1639,16 @@ details > summary::-webkit-details-marker {
   clip-path: inset(50%);
 }
 
-.gente label:hover,
 .gente label:has(input:checked) {
   color: var(--papel);
   background: var(--tinta);
+}
+
+@media (hover: hover) {
+  .gente label:hover {
+  color: var(--papel);
+  background: var(--tinta);
+}
 }
 
 .gente label:has(input:focus-visible) {
@@ -1766,9 +1871,11 @@ details > summary::-webkit-details-marker {
   text-transform: uppercase;
 }
 
-.grafo-estado a:hover {
+@media (hover: hover) {
+  .grafo-estado a:hover {
   color: var(--papel);
   background: var(--tinta);
+}
 }
 
 .grafo-ficha {
@@ -1787,6 +1894,12 @@ details > summary::-webkit-details-marker {
 
 .grafo-ficha.visible {
   display: block;
+}
+
+/* Recién abierta no acepta pulsaciones: se come el clic fantasma del toque
+   que la ha abierto. Ver `protegerDelToque` en grafo.js. */
+.grafo-ficha.recien-abierta {
+  pointer-events: none;
 }
 
 .grafo-cerrar {
@@ -2588,10 +2701,6 @@ body > .hoja:only-child {
 }
 
 @media (max-width: 640px) {
-  .grafo-ficha {
-    width: calc(100vw - 16px);
-  }
-
   .grafo-ficha .ficha-mini-identidad .foto-mini {
     width: 80px;
     height: 80px;
@@ -2727,17 +2836,30 @@ input[type="file"]::file-selector-button {
   border-bottom: 1px solid transparent;
 }
 
-.pestanas a:hover,
 .pestanas a[aria-current="page"] {
   color: var(--tinta);
   background: transparent;
   border-bottom-color: var(--tinta);
 }
 
-.pestanas a[aria-current="page"] span,
-.pestanas a:hover span {
+@media (hover: hover) {
+  .pestanas a:hover {
+  color: var(--tinta);
+  background: transparent;
+  border-bottom-color: var(--tinta);
+}
+}
+
+.pestanas a[aria-current="page"] span {
   color: var(--papel);
   background: var(--tinta);
+}
+
+@media (hover: hover) {
+  .pestanas a:hover span {
+  color: var(--papel);
+  background: var(--tinta);
+}
 }
 
 .buscar-con-limpiar {
@@ -2748,12 +2870,15 @@ input[type="file"]::file-selector-button {
   padding-right: 48px;
 }
 
+/* De arriba abajo del campo: con altura propia, el filete que la separa se
+   quedaba corto y la × parecía suelta fuera de la caja. */
 .buscar-con-limpiar > button {
   position: absolute;
   top: 0;
   right: 0;
+  bottom: 0;
   width: 40px;
-  min-height: 40px;
+  min-height: 0;
   padding: 0;
   border-top: 0;
   border-right: 0;
@@ -2920,11 +3045,17 @@ input[type="file"]::file-selector-button {
   border-bottom: 0;
 }
 
-.selector-resultados > button:hover,
-.selector-resultados > button[aria-selected="true"],
+.selector-resultados > button[aria-selected="true"] {
+  color: var(--papel);
+  background: var(--tinta);
+}
+
+@media (hover: hover) {
+  .selector-resultados > button:hover,
 .resultados-integrados > button:hover {
   color: var(--papel);
   background: var(--tinta);
+}
 }
 
 .selector-eleccion {
@@ -2957,20 +3088,8 @@ input[type="file"]::file-selector-button {
   width: 320px;
 }
 
-.ventana-titulo {
-  color: var(--tinta);
-  background: var(--papel);
-  border-bottom: var(--filete);
-}
-
-.ventana-titulo::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  margin: 4px 8px 0 0;
-  background: var(--tinta);
-}
-
+/* Explorar la red conserva su relleno de tinta (definido arriba), sin el
+   cuadrado de la izquierda: la propia banda ya marca el título. */
 .ventana-titulo > span:first-child {
   margin-right: auto;
 }
@@ -3006,9 +3125,11 @@ input[type="file"]::file-selector-button {
   text-decoration: underline;
 }
 
-.accion-texto:hover {
+@media (hover: hover) {
+  .accion-texto:hover {
   color: var(--tinta);
   background: var(--papel);
+}
 }
 
 .grafo-circulos-lista {
@@ -3029,9 +3150,11 @@ input[type="file"]::file-selector-button {
   letter-spacing: 0;
 }
 
-.grafo-circulos-lista > button:hover {
+@media (hover: hover) {
+  .grafo-circulos-lista > button:hover {
   color: var(--tinta);
   background: var(--papel);
+}
 }
 
 .grafo-circulos-lista > button[aria-pressed="true"] {
@@ -3047,10 +3170,15 @@ input[type="file"]::file-selector-button {
   border: 1px solid currentColor;
 }
 
-.grafo-circulos-lista > button:hover .circulo-cuadrado,
 .grafo-circulos-lista > button:focus-visible .circulo-cuadrado,
 .grafo-circulos-lista > button[aria-pressed="true"] .circulo-cuadrado {
   background: currentColor;
+}
+
+@media (hover: hover) {
+  .grafo-circulos-lista > button:hover .circulo-cuadrado {
+  background: currentColor;
+}
 }
 
 .circulo-cuenta {
@@ -3308,18 +3436,23 @@ textarea::placeholder {
   line-height: 14px;
 }
 
-.archivo-carpetas > a:hover .carpeta-texto small,
 .archivo-carpetas > a[aria-current="page"] .carpeta-texto small,
-.archivo-personas a:hover .donde,
-.archivo-personas a:hover .cuando,
 .archivo-personas a[aria-current="true"] .donde,
 .archivo-personas a[aria-current="true"] .cuando,
-.gente label:hover .donde,
 .gente label:has(input:checked) .donde,
+.selector-resultados > button[aria-selected="true"] .donde {
+  color: var(--secundario-sobre-tinta);
+}
+
+@media (hover: hover) {
+  .archivo-carpetas > a:hover .carpeta-texto small,
+.archivo-personas a:hover .donde,
+.archivo-personas a:hover .cuando,
+.gente label:hover .donde,
 .selector-resultados > button:hover .donde,
-.selector-resultados > button[aria-selected="true"] .donde,
 .resultados-integrados > button:hover .donde {
   color: var(--secundario-sobre-tinta);
+}
 }
 
 .archivo-relaciones small,
@@ -3334,8 +3467,10 @@ textarea::placeholder {
   text-transform: none;
 }
 
-.relacion-fila:hover > span:nth-child(2) {
+@media (hover: hover) {
+  .relacion-fila:hover > span:nth-child(2) {
   color: var(--secundario-sobre-tinta);
+}
 }
 
 .archivo-ficha-foto {
@@ -3541,55 +3676,69 @@ html[data-modo="noche"] .panel-cabecera {
 
 html[data-modo="noche"] ::selection,
 html[data-modo="noche"] .marca-pixel,
-html[data-modo="noche"] .barra nav a:hover,
 html[data-modo="noche"] .barra nav a[aria-current="page"],
 html[data-modo="noche"] .pestanas a span,
 html[data-modo="noche"] .pestanas a[aria-current="page"],
-html[data-modo="noche"] .ficha-indice a:hover,
-html[data-modo="noche"] button:hover,
-html[data-modo="noche"] .boton:hover,
 html[data-modo="noche"] .boton-solido,
-html[data-modo="noche"] .anadir > summary:hover,
-html[data-modo="noche"] .busqueda-panel > summary:hover,
-html[data-modo="noche"] .plegado > summary:hover,
 html[data-modo="noche"] .anadir-destacado > summary,
 html[data-modo="noche"] .alta-archivo > summary,
 html[data-modo="noche"] input[type="file"]::file-selector-button,
-html[data-modo="noche"] .persona-fila:hover,
-html[data-modo="noche"] .archivo-carpetas > a:hover,
 html[data-modo="noche"] .archivo-carpetas > a[aria-current="page"],
-html[data-modo="noche"] .archivo-busqueda .buscar-con-limpiar > a:hover,
-html[data-modo="noche"] .archivo-personas a:hover,
 html[data-modo="noche"] .archivo-personas a[aria-current="true"],
-html[data-modo="noche"] .archivo-paginacion > a:hover,
-html[data-modo="noche"] .editar-enlace:hover,
-html[data-modo="noche"] .chip:hover,
-html[data-modo="noche"] .relacion-fila:hover,
-html[data-modo="noche"] .editar-registro > summary:hover,
 html[data-modo="noche"] .editar-registro[open] > summary,
-html[data-modo="noche"] .gente label:hover,
 html[data-modo="noche"] .gente label:has(input:checked),
 html[data-modo="noche"] .grafo-botones button[aria-pressed="false"],
 html[data-modo="noche"] .grafo-ayuda[open] > summary,
-html[data-modo="noche"] .grafo-estado a:hover,
 html[data-modo="noche"] .grafo-ficha .ficha-mini-identidad .foto-vacia,
-html[data-modo="noche"] .selector-resultados > button:hover,
 html[data-modo="noche"] .selector-resultados > button[aria-selected="true"],
-html[data-modo="noche"] .resultados-integrados > button:hover,
 html[data-modo="noche"] .grafo-circulos-lista > button[aria-pressed="true"] {
   color: var(--inverso-texto);
   background: var(--inverso-fondo);
 }
 
-html[data-modo="noche"] .boton-solido:hover {
+@media (hover: hover) {
+  html[data-modo="noche"] .barra nav a:hover,
+html[data-modo="noche"] .ficha-indice a:hover,
+html[data-modo="noche"] button:hover,
+html[data-modo="noche"] .boton:hover,
+html[data-modo="noche"] .anadir > summary:hover,
+html[data-modo="noche"] .busqueda-panel > summary:hover,
+html[data-modo="noche"] .plegado > summary:hover,
+html[data-modo="noche"] .persona-fila:hover,
+html[data-modo="noche"] .archivo-carpetas > a:hover,
+html[data-modo="noche"] .archivo-busqueda .buscar-con-limpiar > a:hover,
+html[data-modo="noche"] .archivo-personas a:hover,
+html[data-modo="noche"] .archivo-paginacion > a:hover,
+html[data-modo="noche"] .editar-enlace:hover,
+html[data-modo="noche"] .chip:hover,
+html[data-modo="noche"] .relacion-fila:hover,
+html[data-modo="noche"] .editar-registro > summary:hover,
+html[data-modo="noche"] .gente label:hover,
+html[data-modo="noche"] .grafo-estado a:hover,
+html[data-modo="noche"] .selector-resultados > button:hover,
+html[data-modo="noche"] .resultados-integrados > button:hover {
+  color: var(--inverso-texto);
+  background: var(--inverso-fondo);
+}
+}
+
+@media (hover: hover) {
+  html[data-modo="noche"] .boton-solido:hover {
+  color: var(--inverso-texto);
+  background: #4a4b44;
+}
+}
+
+html[data-modo="noche"] .alta-archivo[open] > summary {
   color: var(--inverso-texto);
   background: #4a4b44;
 }
 
-html[data-modo="noche"] .alta-archivo > summary:hover,
-html[data-modo="noche"] .alta-archivo[open] > summary {
+@media (hover: hover) {
+  html[data-modo="noche"] .alta-archivo > summary:hover {
   color: var(--inverso-texto);
   background: #4a4b44;
+}
 }
 
 html[data-modo="noche"] .editar-registro > summary {
@@ -3597,16 +3746,24 @@ html[data-modo="noche"] .editar-registro > summary {
   background: var(--capa);
 }
 
-html[data-modo="noche"] .editar-registro > summary:hover,
 html[data-modo="noche"] .editar-registro[open] > summary {
   color: var(--inverso-texto);
   background: var(--inverso-fondo);
 }
 
-html[data-modo="noche"] .grafo-mandos .accion-texto:hover,
+@media (hover: hover) {
+  html[data-modo="noche"] .editar-registro > summary:hover {
+  color: var(--inverso-texto);
+  background: var(--inverso-fondo);
+}
+}
+
+@media (hover: hover) {
+  html[data-modo="noche"] .grafo-mandos .accion-texto:hover,
 html[data-modo="noche"] .grafo-circulos-lista > button:hover {
   color: var(--inverso-texto);
   background: #33342f;
+}
 }
 
 .accion-eliminar {
@@ -3615,11 +3772,13 @@ html[data-modo="noche"] .grafo-circulos-lista > button:hover {
   border-color: var(--secundario);
 }
 
-.accion-eliminar:hover,
+@media (hover: hover) {
+  .accion-eliminar:hover,
 html[data-modo="noche"] .accion-eliminar:hover {
   color: var(--papel);
   background: var(--secundario);
   border-color: var(--secundario);
+}
 }
 
 @media (max-width: 640px) {
@@ -3633,5 +3792,689 @@ html[data-modo="noche"] .accion-eliminar:hover {
 
   .ficha-identidad-texto {
     min-height: 64px;
+  }
+}
+
+/* 2026-07-31 · la ficha completa, continuación de la comprimida de la red.
+   Mismo marco, misma cabecera, misma etiqueta con filete y contador. Lo que no
+   se hereda es la retícula: aquí se lee entero y no se trunca nunca. */
+
+.ficha {
+  border: var(--filete);
+}
+
+.ficha > .bloque + .bloque {
+  border-top: var(--filete);
+}
+
+/* La cabecera de cada bloque va rellena, para que sección y contenido no se
+   confundan. Etiqueta, contador y Editar comparten el mismo color. */
+.bloque-cabecera {
+  display: flex;
+  color: var(--inverso-texto);
+  background: var(--inverso-fondo);
+  border-bottom: var(--filete);
+}
+
+.bloque-plegar {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  margin: 0;
+  padding: 8px 16px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  text-align: left;
+}
+
+.bloque-etiqueta {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.bloque-cuenta {
+  margin-left: auto;
+  color: inherit;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.bloque-signo {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.bloque-editar {
+  flex: none;
+  min-height: 40px;
+  margin: 0;
+  padding: 8px 16px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-left: 1px solid currentColor;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+/* Dentro de una cabecera ya invertida, lo abierto y lo señalado vuelven al
+   papel: es el único modo de que se distingan de la banda. */
+.bloque-cabecera .bloque-editar[aria-pressed="true"],
+html[data-modo="noche"] .bloque-cabecera .bloque-editar[aria-pressed="true"] {
+  color: var(--tinta);
+  background: var(--papel);
+}
+
+@media (hover: hover) {
+  .bloque-cabecera .bloque-plegar:hover,
+.bloque-cabecera .bloque-editar:hover,
+html[data-modo="noche"] .bloque-cabecera .bloque-plegar:hover,
+html[data-modo="noche"] .bloque-cabecera .bloque-editar:hover {
+  color: var(--tinta);
+  background: var(--papel);
+}
+}
+
+.bloque-cuerpo {
+  padding: 16px;
+}
+
+.bloque-cuerpo[hidden] {
+  display: none;
+}
+
+/* En reposo, ni un botón dentro del contenido. */
+[data-bloque][data-edicion="no"] [data-solo-edicion] {
+  display: none;
+}
+
+.bloque-edicion {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: var(--filete);
+}
+
+.bloque-edicion > form + form {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: var(--filete-suave);
+}
+
+/* Identidad */
+
+.bloque-identidad {
+  padding: 16px;
+}
+
+.bloque-identidad > .ficha-etiqueta {
+  margin: 0 0 12px;
+  color: var(--secundario);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: .12em;
+}
+
+.identidad {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.identidad .foto-perfil {
+  flex: none;
+  width: 80px;
+  height: 80px;
+}
+
+.identidad-texto {
+  min-width: 0;
+}
+
+.identidad-texto .nombre-completo {
+  margin: 4px 0 0;
+  font-family: var(--lectura);
+  font-size: 16px;
+  line-height: 24px;
+  font-style: italic;
+}
+
+.identidad-texto .donde {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.identidad-acciones {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.identidad-acciones .boton {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+.identidad-acciones .bloque-editar {
+  border: var(--filete);
+}
+
+/* De un vistazo */
+
+.vistazo {
+  display: grid;
+  margin: 0;
+}
+
+.vistazo > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.vistazo > div + div {
+  border-top: var(--filete-suave);
+}
+
+.vistazo dt {
+  margin: 0;
+  color: var(--secundario);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.vistazo dd {
+  margin: 0;
+  font-family: var(--lectura);
+  font-size: 16px;
+  line-height: 24px;
+  text-align: right;
+}
+
+.bloque-cuerpo > .nota-rapida {
+  margin: 16px 0 0;
+  padding-top: 16px;
+  border-top: var(--filete-suave);
+  font-family: var(--lectura);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+/* Líneas de contenido: el texto entero, nunca truncado. */
+
+.lineas {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.linea {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.linea + .linea {
+  border-top: var(--filete-suave);
+}
+
+.linea-texto {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--lectura);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.linea-dato {
+  display: block;
+  margin-top: 2px;
+  color: var(--secundario);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+/* Las acciones se apoyan en la línea base de su frase, no a media altura. */
+.linea-acciones {
+  display: flex;
+  flex: none;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.linea-acciones form {
+  margin: 0;
+}
+
+/* Eliminar vuelve a su gris de siempre. La única excepción es al señalarlo:
+   ahí sí se pone rojo, para que borrar nunca se pulse por inercia. */
+
+@media (hover: hover) {
+  .accion-eliminar:hover,
+html[data-modo="noche"] .accion-eliminar:hover {
+  color: var(--papel);
+  background: var(--alarma);
+  border-color: var(--alarma);
+}
+}
+
+.ficha .vacio {
+  margin: 0;
+  font-family: var(--lectura);
+  font-size: 16px;
+  line-height: 24px;
+  font-style: italic;
+  color: var(--secundario);
+}
+
+/* Quedadas: una columna, con la fecha encima del texto. */
+
+.bloque-cuerpo .quedadas {
+  border: 0;
+}
+
+.bloque-cuerpo .quedada {
+  display: block;
+  padding: 12px 0;
+  border-bottom: var(--filete-suave);
+}
+
+.bloque-cuerpo .quedada:first-child {
+  padding-top: 0;
+}
+
+.bloque-cuerpo .quedada:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.quedada-cuando {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 4px;
+  color: var(--secundario);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+  text-transform: uppercase;
+}
+
+.quedada-cuando .editar-enlace {
+  margin-left: auto;
+  text-decoration: underline;
+}
+
+.bloque-cuerpo .escrito {
+  margin: 0;
+  font-family: var(--lectura);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.bloque-cuerpo .paginas {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: var(--filete-suave);
+}
+
+.bloque-cuerpo .paginas .cuenta {
+  margin: 0 auto;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+/* Relaciones */
+
+/* La lista se sale del relleno del bloque para que al señalar una relación se
+   pinte la caja entera, sin cortes arriba, abajo ni a los lados. */
+.bloque-cuerpo .relaciones-lista {
+  margin: -16px;
+  border: 0;
+}
+
+.bloque-cuerpo .relacion-registro {
+  border-bottom: 0;
+}
+
+.bloque-cuerpo .relacion-registro + .relacion-registro {
+  border-top: var(--filete-suave);
+}
+
+.bloque-cuerpo .relacion-fila {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-height: 0;
+  padding: 12px 16px;
+  border-bottom: 0;
+  font-family: var(--lectura);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+/* El control Editar de cada relación se coloca encima; sólo entonces hace
+   falta reservarle sitio. Va centrado en la fila y a su altura, no como un
+   cajón de 40px que sobresalía por debajo. */
+[data-edicion="si"] .bloque-cuerpo .relacion-fila {
+  padding-right: 88px;
+}
+
+.bloque-cuerpo .editar-registro > summary {
+  top: 50%;
+  right: 8px;
+  min-height: 28px;
+  padding: 4px 8px;
+  transform: translateY(-50%);
+}
+
+.bloque-cuerpo .relacion-fila .lazo {
+  margin-left: auto;
+  color: var(--secundario);
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+/* Una sola columna también en escritorio: en dos, la etiqueta y su valor
+   quedaban en extremos opuestos de media pantalla y no se leían como pareja. */
+
+/* 2026-07-30 · controles propios: círculo y fecha, sin desplegables nativos */
+
+.rotulo-grupo,
+.opciones > legend {
+  display: block;
+  margin: 0 0 8px;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.opciones {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.opciones-lista {
+  display: grid;
+  border-top: var(--filete);
+  border-left: var(--filete);
+}
+
+.opciones .opcion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  margin: 0;
+  padding: 8px 12px;
+  border-right: var(--filete);
+  border-bottom: var(--filete);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* La casilla queda dentro de su fila, invisible pero enfocable. */
+.opciones .opcion input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+.opcion-marca {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border: var(--filete);
+}
+
+.opciones .opcion:has(input:checked) {
+  color: var(--papel);
+  background: var(--tinta);
+}
+
+@media (hover: hover) {
+  .opciones .opcion:hover {
+  color: var(--papel);
+  background: var(--tinta);
+}
+}
+
+.opciones .opcion:has(input:checked) .opcion-marca {
+  background: var(--papel);
+  border-color: var(--papel);
+}
+
+@media (hover: hover) {
+  .opciones .opcion:hover .opcion-marca {
+  background: var(--papel);
+  border-color: var(--papel);
+}
+}
+
+.opciones .opcion:has(input:focus-visible) {
+  outline: 2px solid var(--tinta);
+  outline-offset: -4px;
+}
+
+@media (min-width: 641px) {
+  .opciones-lista {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* La fecha: atajos delante, calendario detrás. */
+.campo-fecha[hidden] {
+  display: none;
+}
+
+.fecha-atajos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: var(--filete);
+  border-left: var(--filete);
+}
+
+.fecha-atajo,
+.fecha-dia {
+  min-width: 0;
+  min-height: 40px;
+  margin: 0;
+  padding: 4px;
+  color: var(--tinta);
+  background: var(--papel);
+  border: 0;
+  border-right: var(--filete);
+  border-bottom: var(--filete);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: .06em;
+}
+
+.fecha-atajo[aria-pressed="true"],
+.fecha-dia[aria-pressed="true"] {
+  color: var(--papel);
+  background: var(--tinta);
+}
+
+@media (hover: hover) {
+  .fecha-atajo:hover,
+.fecha-dia:hover {
+  color: var(--papel);
+  background: var(--tinta);
+}
+}
+
+.fecha-elegida {
+  margin: 8px 0 0;
+  font-family: var(--lectura);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.fecha-abrir {
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  margin-top: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.fecha-calendario {
+  margin-top: -1px;
+  border: var(--filete);
+}
+
+.fecha-mes {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  align-items: center;
+  border-bottom: var(--filete);
+}
+
+.fecha-mes > span {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: .12em;
+  text-align: center;
+}
+
+.fecha-mes > button {
+  min-width: 40px;
+  min-height: 40px;
+  margin: 0;
+  border: 0;
+  font-size: 16px;
+}
+
+.fecha-semana {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-bottom: var(--filete);
+}
+
+.fecha-semana > span {
+  padding: 4px 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+}
+
+.fecha-dias {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-left: var(--filete);
+}
+
+.fecha-hueco {
+  border-right: var(--filete);
+  border-bottom: var(--filete);
+}
+
+/* Hoy se marca con el cuadrado de tinta, no con un color. */
+.fecha-dia.es-hoy::after {
+  content: "";
+  display: block;
+  width: 4px;
+  height: 4px;
+  margin: 2px auto 0;
+  background: var(--tinta);
+}
+
+.fecha-dia.es-hoy[aria-pressed="true"]::after {
+  background: var(--papel);
+}
+
+@media (hover: hover) {
+  .fecha-dia.es-hoy:hover::after {
+  background: var(--papel);
+}
+}
+
+/* 2026-07-30 · móvil: ficha arriba, filetes enteros y explorar la red plegable */
+
+.grafo-mandos > .ventana-titulo {
+  width: 100%;
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* De fábrica: abierto en escritorio, cerrado en estrecho. Al pulsar, la marca
+   del elemento manda sobre las dos. */
+@media (min-width: 641px) {
+  .grafo-mandos[data-plegado="si"] .grafo-mandos-cuerpo {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .grafo-mandos:not([data-plegado="no"]) .grafo-mandos-cuerpo {
+    display: none;
+  }
+
+  .grafo-mandos > .ventana-titulo {
+    min-height: 40px;
+  }
+
+  /* La ficha baja desde la barra en vez de subir desde el pie, y ocupa el
+     ancho entero para que los filetes lleguen a los dos bordes. Que tape
+     Explorar la red es deliberado. */
+  .grafo-ficha {
+    top: var(--barra);
+    right: 0;
+    bottom: auto;
+    left: 0;
+    width: auto;
+    max-height: calc(100vh - var(--barra) - 32px);
+    border-top: 0;
+    border-right: 0;
+    border-bottom: var(--filete);
+    border-left: 0;
   }
 }
