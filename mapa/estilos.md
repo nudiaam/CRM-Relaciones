@@ -81,10 +81,26 @@ porque `:root` es el `<html>` que lleva el modo.
 | Círculo (radios) | 4243 | `.opciones {` |
 | Fecha (atajos y calendario) | 4337 | `.fecha-atajos {` |
 
+## Cabeceras de sección: quién lleva caja y quién no
+
+| Dónde | Clase | ¿Caja rellena? |
+| --- | --- | --- |
+| Ficha expandida | `.bloque-cabecera` | **sí** |
+| Ajustes | `.panel-cabecera` | **sí**, desde 2026-07-31 |
+| Ficha compacta de la Red | `.ficha-mini-modulo > header` | no |
+| Ficha rápida de Personas | `.archivo-*  header` | no |
+
+Las dos compactas se probaron con caja y **se descartó**: cinco bandas en tan
+poco alto pesaban demasiado. Además tiene una trampa: `estilo.css` pinta
+`header > span:first-child` con `var(--tinta)` y el contador con el gris
+secundario, así que sobre una banda de tinta el rótulo se vuelve invisible. Si
+se retoma, hay que colorear **también esos dos hijos**, no sólo el contenedor.
+
 ## Trampas conocidas
 
-- `.panel-cabecera` **la comparte Ajustes**. No la toques para arreglar la
-  ficha; usa las clases `.bloque-*`.
+- `.panel-cabecera` **es sólo de Ajustes** desde que la ficha pasó a
+  `.bloque-*`. Está definida dos veces: la de arriba y otra más abajo, en la
+  capa «Revisión amable», que es la que manda.
 - `.apartado`, `.tarjeta-accion`, `.cosas`, `.dice`, `.aparte`,
   `.ficha-resumen` son **CSS muerto**: ninguna plantilla los usa desde el
   rediseño de la ficha del 2026-07-31.

@@ -320,8 +320,10 @@ p {
   justify-content: space-between;
   min-height: 40px;
   padding: 8px 16px;
-  color: var(--papel);
-  background: var(--tinta);
+  /* Misma caja que `.bloque-cabecera` de la ficha: las variables ya dan tinta
+     pura de día y carbón de noche, sin copiar los colores de un modo al otro. */
+  color: var(--inverso-texto);
+  background: var(--inverso-fondo);
   font-family: var(--mono);
   font-size: 11px;
   line-height: 16px;
@@ -2498,8 +2500,12 @@ body > .hoja:only-child {
   border-right: var(--filete);
 }
 
+/* Sin foto se enseña la inicial sobre papel, no un cuadrado de tinta macizo. */
 .grafo-ficha .ficha-mini-identidad .foto-vacia {
-  background: var(--tinta);
+  background: var(--papel);
+  font-family: var(--lectura);
+  font-size: 33px;
+  line-height: 40px;
 }
 
 .grafo-ficha .ficha-mini-identidad > div {
@@ -2702,12 +2708,15 @@ input[type="file"]::file-selector-button {
   border-top: var(--filete);
 }
 
+/* Vuelve a ser una caja, como `.bloque-cabecera` de la ficha expandida. Entre
+   2026-07-28 y hoy fue texto plano con un cuadrado; ese cuadrado sobra dentro
+   de una banda rellena. */
 .panel-cabecera {
-  min-height: 32px;
-  padding: 0 0 16px;
-  color: var(--tinta);
-  background: transparent;
-  border-bottom: var(--filete-suave);
+  min-height: 40px;
+  padding: 8px 16px;
+  color: var(--inverso-texto);
+  background: var(--inverso-fondo);
+  border-bottom: 0;
 }
 
 .panel-cabecera h2 {
@@ -2716,14 +2725,7 @@ input[type="file"]::file-selector-button {
   gap: 8px;
 }
 
-.panel-cabecera h2::before {
-  content: "";
-  display: block;
-  flex: none;
-  width: 8px;
-  height: 8px;
-  background: var(--tinta);
-}
+/* Sin cuadrado: la banda rellena ya marca la sección, como en la ficha. */
 
 .panel > .vacio,
 .apartado > .vacio {
@@ -3532,7 +3534,6 @@ html[data-modo="noche"] .saltar:focus,
 html[data-modo="noche"] .barra,
 html[data-modo="noche"] .panel,
 html[data-modo="noche"] .apartado,
-html[data-modo="noche"] .panel-cabecera,
 html[data-modo="noche"] .prometido,
 html[data-modo="noche"] input,
 html[data-modo="noche"] select,
@@ -3570,10 +3571,6 @@ html[data-modo="noche"] .selector-resultados {
 html[data-modo="noche"] .grafo-mandos > .ventana-titulo {
   color: var(--inverso-texto);
   background: var(--inverso-fondo);
-}
-
-html[data-modo="noche"] .panel-cabecera {
-  color: var(--tinta);
 }
 
 html[data-modo="noche"] ::selection,
@@ -4102,6 +4099,50 @@ html[data-modo="noche"] .accion-eliminar:hover {
   font-family: var(--mono);
   font-size: 11px;
   text-transform: uppercase;
+}
+
+/* Las fichas compactas NO llevan las cabeceras en caja. Se probó el 2026-07-31
+   y se descartó: cinco bandas en tan poco alto pesaban demasiado, y además el
+   rótulo se volvía ilegible porque las reglas de más abajo pintan
+   `header > span:first-child` con tinta y el contador con el gris secundario.
+   Si algún día se retoma, hay que colorear también esos dos hijos. */
+
+/* 2026-07-31 · Ajustes: cabeceras en caja y distribución apretada.
+   Los círculos se quedan en 48px: por debajo son incómodos con el dedo. */
+
+.pagina-ajustes .panel {
+  margin-top: 24px;
+}
+
+.pagina-ajustes .pagina-cabecera {
+  min-height: auto;
+  padding-bottom: 20px;
+}
+
+.pagina-ajustes .entradilla {
+  margin-top: 8px;
+}
+
+.pagina-ajustes .ajuste-fila {
+  gap: 16px;
+  padding: 16px;
+}
+
+.pagina-ajustes .ajuste-fila h3 {
+  margin-bottom: 4px;
+}
+
+.pagina-ajustes .ayuda {
+  padding: 12px 16px;
+}
+
+.pagina-ajustes .circulos-lista > li {
+  min-height: 48px;
+  padding: 6px 12px;
+}
+
+.pagina-ajustes .anadir > summary {
+  min-height: 44px;
 }
 
 /* Enlazar con varias: los atajos de círculo y la lista de casillas. */

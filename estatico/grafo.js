@@ -916,7 +916,10 @@
       '<header class="ficha-mini-cabecera"><div class="ficha-mini-identidad">' +
       (n.foto
         ? '<img class="foto-mini" src="/persona/' + n.id + '/foto" alt="">'
-        : '<span class="foto-mini foto-vacia" aria-hidden="true"></span>') +
+        // Sin foto va su inicial, como en la ficha rápida de Personas. Antes
+        // era un cuadrado de tinta macizo y no decía nada de quién era.
+        : '<span class="foto-mini foto-vacia" aria-hidden="true">' +
+          esc((n.nombre || '?').trim().charAt(0).toUpperCase()) + '</span>') +
       '<div><h1 class="titulo">' + esc(n.nombre) + '</h1>' +
       (n.nombreCompleto !== n.nombre
         ? '<p class="ficha-mini-nombre-completo">' + esc(n.nombreCompleto) + '</p>'

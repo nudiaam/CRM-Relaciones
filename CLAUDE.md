@@ -749,3 +749,31 @@ sólo al señalar un borrado.
   la base real quedó intacta. No se cambió el esquema. La única consulta que se
   tocó añade `circulo_id` a la lista de otras personas de la ficha.
 - Los recursos estáticos van por `?v=20260731h`.
+
+### 2026-07-31 — Ajustes en caja, y la inicial en la ficha de la Red
+
+- **Las cabeceras de Ajustes vuelven a ser una caja rellena**, con el mismo
+  tratamiento que `.bloque-cabecera` de la ficha expandida: `--inverso-fondo`
+  y `--inverso-texto`, o sea tinta pura de día y carbón de noche sin copiar los
+  colores de un modo al otro. Antes era caja **sólo de día**: la lista antigua
+  de `html[data-modo="noche"]` la devolvía a fondo de página.
+- Había además una segunda definición de `.panel-cabecera`, en la capa del
+  2026-07-28, que la había convertido en texto plano con un cuadradito. Era esa
+  la que mandaba. Se reescribió en su sitio y el cuadrado desapareció: dentro
+  de una banda rellena sobra. `.panel-cabecera` ya sólo la usa Ajustes.
+- **Ajustes se comprimió**: 24px entre paneles en vez de 48, cabecera de página
+  sin alto mínimo, 16px de relleno por fila y 12/16 en el texto de ayuda. Los
+  círculos bajan de 64 a 55px de alto y **ahí se paran**: por debajo dejan de
+  ser cómodos con el dedo.
+- **En la ficha de la Red, quien no tiene foto muestra su inicial** en serif a
+  33px sobre papel, como ya hacía la ficha rápida de Personas. Antes salía un
+  cuadrado de tinta macizo que no decía nada de quién era. Personas no se tocó:
+  ya lo hacía bien.
+- **Se probó llevar también a caja las cabeceras de las dos fichas compactas y
+  se descartó**, a la vista de una captura: cinco bandas en tan poco alto
+  pesaban demasiado. Y el intento estaba además incompleto, porque
+  `header > span:first-child` se pinta con `var(--tinta)` en una regla
+  posterior y el rótulo quedaba tinta sobre tinta, ilegible. Queda anotado en
+  el CSS y en `mapa/estilos.md` por si se retoma.
+- No se tocó la base, el esquema ni qué información se muestra. Los recursos
+  van por `?v=20260731i`.
