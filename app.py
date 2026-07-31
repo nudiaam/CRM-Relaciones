@@ -1003,7 +1003,7 @@ def ficha(
         "pagina": pagina,
         "paginas": paginas,
         "otras": con.execute(
-            "SELECT id, nombre, apodo, "
+            "SELECT id, nombre, apodo, circulo_id, "
             "  COALESCE(NULLIF(TRIM(apodo), ''), nombre) AS nombre_visible, "
             "  (SELECT nombre FROM circulo WHERE id = persona.circulo_id) AS circulo "
             "FROM persona WHERE id <> ? ORDER BY nombre_visible COLLATE NOCASE",
@@ -1182,6 +1182,28 @@ def crear_hilo(persona_id: int, texto: str = Form(""), tipo: str = Form("pregunt
     return RedirectResponse(f"/persona/{persona_id}", status_code=303)
 
 
+def enlazar(con, persona_id, otra_id, etiqueta, inversa):
+    """Crea o actualiza la relación entre dos personas. Una sola fila por pareja."""
+    reves = con.execute(
+        "SELECT 1 FROM relacion WHERE persona_a = ? AND persona_b = ?",
+        (otra_id, persona_id),
+    ).fetchone()
+    if reves:
+        # Ya existe la fila en el otro sentido: se actualiza cambiando papeles.
+        con.execute(
+            "UPDATE relacion SET etiqueta = ?, etiqueta_inversa = ? "
+            "WHERE persona_a = ? AND persona_b = ?",
+            (inversa or etiqueta, etiqueta, otra_id, persona_id),
+        )
+    else:
+        con.execute(
+            "INSERT OR REPLACE INTO relacion "
+            "(persona_a, persona_b, etiqueta, etiqueta_inversa) "
+            "VALUES (?, ?, ?, ?)",
+            (persona_id, otra_id, etiqueta, inversa),
+        )
+
+
 @app.post("/persona/{persona_id}/relacion")
 def crear_relacion(
     persona_id: int, otra: str = Form(""), etiqueta: str = Form(""),
@@ -1189,29 +1211,34 @@ def crear_relacion(
 ):
     etiqueta, inversa = etiqueta.strip(), etiqueta_inversa.strip()
     if otra.isdigit() and int(otra) != persona_id and etiqueta:
-        otra_id = int(otra)
         con = conexion()
         with con:
-            reves = con.execute(
-                "SELECT 1 FROM relacion WHERE persona_a = ? AND persona_b = ?",
-                (otra_id, persona_id),
-            ).fetchone()
-            if reves:
-                # Ya existe la fila en el otro sentido: se actualiza cambiando papeles.
-                con.execute(
-                    "UPDATE relacion SET etiqueta = ?, etiqueta_inversa = ? "
-                    "WHERE persona_a = ? AND persona_b = ?",
-                    (inversa or etiqueta, etiqueta, otra_id, persona_id),
-                )
-            else:
-                con.execute(
-                    "INSERT OR REPLACE INTO relacion "
-                    "(persona_a, persona_b, etiqueta, etiqueta_inversa) "
-                    "VALUES (?, ?, ?, ?)",
-                    (persona_id, otra_id, etiqueta, inversa),
-                )
+            enlazar(con, persona_id, int(otra), etiqueta, inversa)
         con.close()
     return RedirectResponse(f"/persona/{persona_id}", status_code=303)
+
+
+@app.post("/persona/{persona_id}/relaciones")
+def crear_relaciones(
+    persona_id: int, personas: list[str] = Form([]), etiqueta: str = Form(""),
+    etiqueta_inversa: str = Form(""),
+):
+    """Varias de golpe con la misma etiqueta: compañeros de trabajo, primos…
+
+    Enlaza a cada elegido con esta persona, no a todos entre sí: quien decide
+    quién va con quién eres tú, y así no se generan relaciones inventadas.
+    """
+    etiqueta, inversa = etiqueta.strip(), etiqueta_inversa.strip()
+    elegidas = {
+        int(x) for x in personas if x.isdigit() and int(x) != persona_id
+    }
+    if elegidas and etiqueta:
+        con = conexion()
+        with con:
+            for otra_id in sorted(elegidas):
+                enlazar(con, persona_id, otra_id, etiqueta, inversa)
+        con.close()
+    return RedirectResponse(f"/persona/{persona_id}#relaciones", status_code=303)
 
 
 @app.post("/relacion/editar")

@@ -44,6 +44,14 @@
   var REPULSION = 16000;
   var LARGO_LAZO = 180;
   var LARGO_DIRECTO = 300;
+  // Cada círculo ocupa su propia zona del volumen. Sin esto, gente que se
+  // conoce entre sí quedaba repartida al azar y sus líneas cruzaban la
+  // pantalla entera.
+  //
+  // El número se eligió midiendo con las 27 personas reales. Subirlo agrupa
+  // más pero junta los puntos: con 0.08 la distancia mínima entre dos personas
+  // caía de 142 a 88. En 0.03 la agrupación mejora un 29% y siguen holgados.
+  var COHESION = 0.03;
   var CERCANIA_NOMBRES = 0.4;   // el 40% más cercano a la cámara
   var GIRO = 0.00087;           // una vuelta cada dos minutos a 60 fotogramas
 
@@ -138,21 +146,83 @@
   var semilla = 20260725;
   function azar() { return (semilla = semilla * 16807 % 2147483647) / 2147483647; }
 
+  // Direcciones bien repartidas por la esfera, una por círculo. Espiral de
+  // Fibonacci: determinista y sin acumular puntos en los polos.
+  function ejesDeCirculos(cuantos) {
+    var ejes = [];
+    var vuelta = Math.PI * (3 - Math.sqrt(5));
+    for (var i = 0; i < cuantos; i++) {
+      var y = cuantos === 1 ? 0 : 1 - (i / (cuantos - 1)) * 2;
+      var r = Math.sqrt(Math.max(0, 1 - y * y));
+      var th = vuelta * i;
+      ejes.push({ x: Math.cos(th) * r, y: y, z: Math.sin(th) * r });
+    }
+    return ejes;
+  }
+
+  // Una dirección al azar dentro del cono que rodea a `eje`.
+  function dentroDelCono(eje, medioAngulo) {
+    // Base ortonormal a partir del eje.
+    var aux = Math.abs(eje.y) < 0.9 ? { x: 0, y: 1, z: 0 } : { x: 1, y: 0, z: 0 };
+    var ux = eje.y * aux.z - eje.z * aux.y;
+    var uy = eje.z * aux.x - eje.x * aux.z;
+    var uz = eje.x * aux.y - eje.y * aux.x;
+    var lu = Math.sqrt(ux * ux + uy * uy + uz * uz) || 1;
+    ux /= lu; uy /= lu; uz /= lu;
+    var vx = eje.y * uz - eje.z * uy;
+    var vy = eje.z * ux - eje.x * uz;
+    var vz = eje.x * uy - eje.y * ux;
+
+    var cosA = 1 - azar() * (1 - Math.cos(medioAngulo));
+    var sinA = Math.sqrt(Math.max(0, 1 - cosA * cosA));
+    var psi = azar() * Math.PI * 2;
+    var cp = Math.cos(psi), sp = Math.sin(psi);
+    return {
+      x: eje.x * cosA + (ux * cp + vx * sp) * sinA,
+      y: eje.y * cosA + (uy * cp + vy * sp) * sinA,
+      z: eje.z * cosA + (uz * cp + vz * sp) * sinA,
+    };
+  }
+
   function colocar() {
     semilla = 20260725;
 
+    // Un eje por círculo con gente dentro. El del centro no cuenta: esa
+    // persona vive en el origen.
+    var conCirculo = nodos.filter(function (n) {
+      return n !== central && n.circuloId !== null;
+    });
+    var ids = [];
+    conCirculo.forEach(function (n) {
+      if (ids.indexOf(n.circuloId) === -1) ids.push(n.circuloId);
+    });
+    var ejes = ejesDeCirculos(ids.length);
+    var medioAngulo = Math.max(0.35, Math.min(1.0, 1.25 / Math.sqrt(ids.length || 1)));
+    var ejePorCirculo = {};
+    ids.forEach(function (id, i) { ejePorCirculo[id] = ejes[i]; });
+
     function repartir(grupo, dentro, fuera) {
       grupo.forEach(function (n, indice) {
-        var u = azar() * 2 - 1;
-        var th = azar() * Math.PI * 2;
-        var s = Math.sqrt(1 - u * u);
         var parte = grupo.length <= 1 ? 0.5 :
           Math.pow((indice + 1) / (grupo.length + 1), 0.72);
         n.radio = dentro + parte * (fuera - dentro);
+        var eje = n.circuloId === null ? null : ejePorCirculo[n.circuloId];
+        var dir;
+        if (eje) {
+          dir = dentroDelCono(eje, medioAngulo);
+          n.eje = eje;          // lo usa la fuerza de cohesión de abajo
+        } else {
+          // Sin círculo no hay grupo al que pertenecer: reparto libre.
+          var u = azar() * 2 - 1;
+          var th = azar() * Math.PI * 2;
+          var s = Math.sqrt(1 - u * u);
+          dir = { x: s * Math.cos(th), y: u, z: s * Math.sin(th) };
+          n.eje = null;
+        }
         var r = n.radio * (0.94 + azar() * 0.12);
-        n.x = r * s * Math.cos(th);
-        n.y = r * u;
-        n.z = r * s * Math.sin(th);
+        n.x = r * dir.x;
+        n.y = r * dir.y;
+        n.z = r * dir.z;
         n.vx = n.vy = n.vz = 0;
       });
     }
@@ -211,6 +281,13 @@
         var d = Math.sqrt(n.x * n.x + n.y * n.y + n.z * n.z) + 0.01;
         var f = (d - n.radio) * 0.05;
         n.vx -= n.x / d * f; n.vy -= n.y / d * f; n.vz -= n.z / d * f;
+        // Cohesión: cada quien tira hacia la zona de su círculo. Sin esto la
+        // repulsión deshace el agrupamiento inicial en las primeras vueltas.
+        if (n.eje) {
+          n.vx += (n.eje.x * n.radio - n.x) * COHESION;
+          n.vy += (n.eje.y * n.radio - n.y) * COHESION;
+          n.vz += (n.eje.z * n.radio - n.z) * COHESION;
+        }
         n.vx *= 0.82; n.vy *= 0.82; n.vz *= 0.82;
         n.x += n.vx; n.y += n.vy; n.z += n.vz;
       });

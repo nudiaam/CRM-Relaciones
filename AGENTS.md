@@ -145,7 +145,17 @@ deliberada, nunca decorada por nostalgia sin función.
   cuerpo principal, controles ni filetes.
 - Las secciones se separan con aire, filete y un pequeño cuadrado de tinta.
   Las bandas negras se reservan para acciones o estados seleccionados; no se
-  repiten como cabecera de todos los paneles.
+  repiten como cabecera de todos los paneles. **Única excepción**: en la ficha
+  completa (`/persona/{id}`) cada bloque sí lleva su cabecera rellena. Fuera de
+  esa pantalla la regla sigue entera.
+- **Toda superficie rellena usa `var(--inverso-fondo)` y `var(--inverso-texto)`,
+  nunca tinta y papel crudos**: en noche la tinta cruda es crema y produce una
+  caja brillante. Las marcas pequeñas —cuadrado, filete, punto— sí usan
+  `var(--tinta)`.
+- **Todo `:hover` vive dentro de un `@media (hover: hover)`**, o en táctil se
+  queda pegado tras el toque. `:focus-visible` va fuera.
+- El único color de la interfaz es `--alarma`, un rojo rebajado que aparece sólo
+  al señalar con el ratón un botón que borra.
 - *Queda pendiente* conserva su filete exterior, pero no lleva retícula ni otra
   trama decorativa detrás del encabezado o del contenido.
 - Los controles tienen al menos 40px de alto y el foco de teclado usa un
@@ -243,6 +253,13 @@ Si parece que algo de esto mejoraría la app: no se hace, se dice.
 - Ningún diario personal: esto registra a otras personas, no al usuario.
 - Nada de "persona en pausa" (pedido y descartado explícitamente).
 - Ninguna otra forma de clasificar gente aparte del círculo.
+
+## El mapa del código
+
+Antes de buscar nada a mano, mira `mapa/`: dice a qué archivo, sección y línea
+ir, con anclas de texto que no envejecen. `python mapa/comprobar.py` verifica
+que el mapa siga siendo cierto y que se cumplan las normas de estilo. Si se toca
+código, se actualiza el mapa en el mismo cambio.
 
 ## Cómo trabajar aquí
 

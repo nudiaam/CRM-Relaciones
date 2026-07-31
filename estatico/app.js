@@ -602,6 +602,42 @@
       }
     });
 
+    // 9 quater. Enlazar con varias personas a la vez. Los atajos marcan un
+    //           círculo entero, que es de donde salen los grupos que se
+    //           repiten: compañeros, primos, gente del barrio.
+    var enlazarVarias = document.querySelector('[data-enlazar-varias]');
+    if (enlazarVarias) {
+      var casillasVarias = Array.from(
+        enlazarVarias.querySelectorAll('.gente input[type="checkbox"]')
+      );
+      var cuentaVarias = enlazarVarias.querySelector('[data-cuenta-varias]');
+
+      function contarVarias() {
+        if (!cuentaVarias) return;
+        var n = casillasVarias.filter(function (c) { return c.checked; }).length;
+        cuentaVarias.textContent = n
+          ? n + (n === 1 ? ' marcada' : ' marcadas')
+          : 'Nadie marcado';
+      }
+
+      enlazarVarias.querySelectorAll('[data-marcar-circulo]').forEach(function (boton) {
+        boton.addEventListener('click', function () {
+          var circulo = boton.dataset.marcarCirculo;
+          casillasVarias.forEach(function (casilla) {
+            var suyo = casilla.closest('label').dataset.circulo;
+            // Sin círculo en el botón: desmarcar todo.
+            casilla.checked = circulo ? suyo === circulo : false;
+          });
+          contarVarias();
+        });
+      });
+
+      casillasVarias.forEach(function (c) {
+        c.addEventListener('change', contarVarias);
+      });
+      contarVarias();
+    }
+
     // 10. El archivador cambia carpeta, persona y página en el mismo sitio.
     //     Conserva enlaces y formularios normales como respaldo, pero con
     //     JavaScript no recarga ni mueve la ventana un solo píxel.

@@ -20,8 +20,10 @@
   --inverso-texto: var(--papel);
   --capa: var(--papel);
   /* Único color de la interfaz, y sólo al señalar un borrado: un rojo
-     rebajado hacia el papel para que no cante entre tanta tinta. */
-  --alarma: #a8452f;
+     rebajado hacia el papel para que no cante entre tanta tinta. El texto
+     va aparte para poder garantizar el contraste en los dos modos. */
+  --alarma: #8f3520;
+  --alarma-texto: #f4efe1;
   --mono: "Departure", "Cascadia Mono", Consolas, monospace;
   --lectura: Georgia, "Times New Roman", serif;
   --filete: 1px solid var(--filete-color);
@@ -40,8 +42,30 @@ html[data-modo="noche"] {
   --filete-color: #706d64;
   --inverso-fondo: #3a3b35;
   --inverso-texto: #f0e9d9;
-  --alarma: #d08a76;
+  --alarma: #e2a893;
+  --alarma-texto: #14120f;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   NORMA DE LOS DOS MODOS. Se cumple siempre, sin excepciones.
+
+   1. Una superficie RELLENA (cabecera de bloque, opción elegida, pestaña
+      actual, botón sólido, fila señalada) se pinta SIEMPRE con
+      `var(--inverso-fondo)` y `var(--inverso-texto)`. Nunca con
+      `var(--tinta)` y `var(--papel)` crudos: en día dan lo mismo, pero en
+      noche crean una caja crema brillante que no pega con nada.
+   2. Una MARCA de tinta pequeña (el cuadrado de las cabeceras, un filete,
+      el punto de hoy) sí usa `var(--tinta)`: ahí «tinta» significa el color
+      del trazo, y en noche es la crema, que es justo lo que se quiere.
+   3. Si una superficie rellena necesita retoque de noche, el retoque va en
+      la propia regla mediante estas variables, no en la lista gigante de
+      `html[data-modo="noche"]`. Esa lista es deuda antigua y no crece.
+   4. El rojo de borrar es `var(--alarma)` con `var(--alarma-texto)`, y sólo
+      aparece al señalar. Ningún otro color entra en la interfaz.
+
+   Comprobación: `node auditar_inverso.js` lista los estados invertidos que
+   usan tinta cruda. Los únicos aceptables son los de la regla 2.
+   ───────────────────────────────────────────────────────────────────────── */
 
 html[data-modo="dia"] {
   color-scheme: light;
@@ -349,70 +373,6 @@ p {
 }
 
 /* Pestañas */
-
-.pestanas,
-.ficha-indice {
-  display: flex;
-  flex-wrap: wrap;
-  margin-top: 32px;
-  border-bottom: var(--filete);
-}
-
-.pestanas a,
-.ficha-indice a {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 40px;
-  margin-bottom: -1px;
-  padding: 8px 16px;
-  border: var(--filete);
-  border-right: 0;
-  font-family: var(--mono);
-  font-size: 11px;
-  line-height: 16px;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-}
-
-.pestanas a:last-child,
-.ficha-indice a:last-child {
-  border-right: var(--filete);
-}
-
-.pestanas a[aria-current="page"] {
-  color: var(--papel);
-  background: var(--tinta);
-}
-
-@media (hover: hover) {
-  .pestanas a:hover,
-.ficha-indice a:hover {
-  color: var(--papel);
-  background: var(--tinta);
-}
-}
-
-.pestanas a span {
-  display: grid;
-  place-items: center;
-  min-width: 16px;
-  height: 16px;
-  color: var(--papel);
-  background: var(--tinta);
-}
-
-.pestanas a[aria-current="page"] span {
-  color: var(--tinta);
-  background: var(--papel);
-}
-
-@media (hover: hover) {
-  .pestanas a:hover span {
-  color: var(--tinta);
-  background: var(--papel);
-}
-}
 
 /* Formularios y controles */
 
@@ -2075,30 +2035,6 @@ body > .hoja:only-child {
     width: 100%;
   }
 
-  .pestanas,
-  .ficha-indice {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    border: var(--filete);
-  }
-
-  .pestanas a,
-  .ficha-indice a {
-    margin: 0;
-    border: 0;
-    border-bottom: var(--filete);
-  }
-
-  .pestanas a:nth-child(odd),
-  .ficha-indice a:nth-child(odd) {
-    border-right: var(--filete);
-  }
-
-  .pestanas a:nth-last-child(-n+2),
-  .ficha-indice a:nth-last-child(-n+2) {
-    border-bottom: 0;
-  }
-
   .persona-fila {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 16px;
@@ -2818,48 +2754,6 @@ input[type="file"]::file-selector-button {
 .persona-fila {
   min-height: 80px;
   padding: 16px;
-}
-
-.pestanas {
-  margin-top: 32px;
-  border-bottom: var(--filete);
-}
-
-.pestanas a,
-.pestanas a:last-child {
-  min-height: 48px;
-  margin-bottom: -1px;
-  padding: 8px 16px;
-  color: var(--tinta);
-  background: transparent;
-  border: 0;
-  border-bottom: 1px solid transparent;
-}
-
-.pestanas a[aria-current="page"] {
-  color: var(--tinta);
-  background: transparent;
-  border-bottom-color: var(--tinta);
-}
-
-@media (hover: hover) {
-  .pestanas a:hover {
-  color: var(--tinta);
-  background: transparent;
-  border-bottom-color: var(--tinta);
-}
-}
-
-.pestanas a[aria-current="page"] span {
-  color: var(--papel);
-  background: var(--tinta);
-}
-
-@media (hover: hover) {
-  .pestanas a:hover span {
-  color: var(--papel);
-  background: var(--tinta);
-}
 }
 
 .buscar-con-limpiar {
@@ -3661,13 +3555,21 @@ html[data-modo="noche"] .grafo-ficha,
 html[data-modo="noche"] .grafo-ayuda,
 html[data-modo="noche"] .grafo-estado,
 html[data-modo="noche"] .grafo-mandos button,
-html[data-modo="noche"] .ventana-titulo,
 html[data-modo="noche"] .gente-paginacion > button:disabled,
 html[data-modo="noche"] input[type="file"],
 html[data-modo="noche"] .foto-perfil,
 html[data-modo="noche"] .foto-mini,
 html[data-modo="noche"] .selector-resultados {
   background: var(--capa);
+}
+
+/* Explorar la red es una banda rellena también de noche. El selector lleva
+   .grafo-mandos a propósito: sin él, la regla de arriba (que alcanza el botón
+   del título con un tipo de más) ganaba por especificidad y lo dejaba con el
+   fondo del panel, oscuro sobre oscuro. */
+html[data-modo="noche"] .grafo-mandos > .ventana-titulo {
+  color: var(--inverso-texto);
+  background: var(--inverso-fondo);
 }
 
 html[data-modo="noche"] .panel-cabecera {
@@ -3677,8 +3579,6 @@ html[data-modo="noche"] .panel-cabecera {
 html[data-modo="noche"] ::selection,
 html[data-modo="noche"] .marca-pixel,
 html[data-modo="noche"] .barra nav a[aria-current="page"],
-html[data-modo="noche"] .pestanas a span,
-html[data-modo="noche"] .pestanas a[aria-current="page"],
 html[data-modo="noche"] .boton-solido,
 html[data-modo="noche"] .anadir-destacado > summary,
 html[data-modo="noche"] .alta-archivo > summary,
@@ -3698,7 +3598,6 @@ html[data-modo="noche"] .grafo-circulos-lista > button[aria-pressed="true"] {
 
 @media (hover: hover) {
   html[data-modo="noche"] .barra nav a:hover,
-html[data-modo="noche"] .ficha-indice a:hover,
 html[data-modo="noche"] button:hover,
 html[data-modo="noche"] .boton:hover,
 html[data-modo="noche"] .anadir > summary:hover,
@@ -4075,7 +3974,7 @@ html[data-modo="noche"] .bloque-cabecera .bloque-editar:hover {
 @media (hover: hover) {
   .accion-eliminar:hover,
 html[data-modo="noche"] .accion-eliminar:hover {
-  color: var(--papel);
+  color: var(--alarma-texto);
   background: var(--alarma);
   border-color: var(--alarma);
 }
@@ -4186,12 +4085,15 @@ html[data-modo="noche"] .accion-eliminar:hover {
   padding-right: 88px;
 }
 
+/* Se ancla a su fila, no al registro entero: con `top: 50%` el botón se iba
+   al centro del formulario en cuanto éste se abría, y en móvil quedaba
+   flotando encima de los campos. 6px = (40 de la fila − 28 del botón) / 2. */
 .bloque-cuerpo .editar-registro > summary {
-  top: 50%;
+  top: 6px;
   right: 8px;
   min-height: 28px;
   padding: 4px 8px;
-  transform: translateY(-50%);
+  transform: none;
 }
 
 .bloque-cuerpo .relacion-fila .lazo {
@@ -4200,6 +4102,40 @@ html[data-modo="noche"] .accion-eliminar:hover {
   font-family: var(--mono);
   font-size: 11px;
   text-transform: uppercase;
+}
+
+/* Enlazar con varias: los atajos de círculo y la lista de casillas. */
+.enlazar-varias {
+  margin-top: 24px;
+}
+
+.enlazar-varias .rotulo-grupo {
+  margin-top: 16px;
+}
+
+.atajos-circulo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.atajos-circulo > button {
+  min-height: 40px;
+  margin: 0;
+  padding: 8px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.enlazar-varias .gente {
+  max-height: none;
+}
+
+.enlazar-varias .acciones {
+  margin-top: 16px;
 }
 
 /* Una sola columna también en escritorio: en dos, la etiqueta y su valor
@@ -4265,26 +4201,26 @@ html[data-modo="noche"] .accion-eliminar:hover {
 }
 
 .opciones .opcion:has(input:checked) {
-  color: var(--papel);
-  background: var(--tinta);
+  color: var(--inverso-texto);
+  background: var(--inverso-fondo);
 }
 
 @media (hover: hover) {
   .opciones .opcion:hover {
-  color: var(--papel);
-  background: var(--tinta);
+  color: var(--inverso-texto);
+  background: var(--inverso-fondo);
 }
 }
 
 .opciones .opcion:has(input:checked) .opcion-marca {
-  background: var(--papel);
-  border-color: var(--papel);
+  background: var(--inverso-texto);
+  border-color: var(--inverso-texto);
 }
 
 @media (hover: hover) {
   .opciones .opcion:hover .opcion-marca {
-  background: var(--papel);
-  border-color: var(--papel);
+  background: var(--inverso-texto);
+  border-color: var(--inverso-texto);
 }
 }
 
@@ -4330,15 +4266,15 @@ html[data-modo="noche"] .accion-eliminar:hover {
 
 .fecha-atajo[aria-pressed="true"],
 .fecha-dia[aria-pressed="true"] {
-  color: var(--papel);
-  background: var(--tinta);
+  color: var(--inverso-texto);
+  background: var(--inverso-fondo);
 }
 
 @media (hover: hover) {
   .fecha-atajo:hover,
 .fecha-dia:hover {
-  color: var(--papel);
-  background: var(--tinta);
+  color: var(--inverso-texto);
+  background: var(--inverso-fondo);
 }
 }
 
@@ -4425,12 +4361,12 @@ html[data-modo="noche"] .accion-eliminar:hover {
 }
 
 .fecha-dia.es-hoy[aria-pressed="true"]::after {
-  background: var(--papel);
+  background: var(--inverso-texto);
 }
 
 @media (hover: hover) {
   .fecha-dia.es-hoy:hover::after {
-  background: var(--papel);
+  background: var(--inverso-texto);
 }
 }
 

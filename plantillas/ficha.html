@@ -83,7 +83,7 @@
         <input id="foto" type="file" name="foto" accept="image/png,image/jpeg,image/webp,image/gif">
         <div class="acciones">
           <button class="boton-solido" type="submit">Guardar foto</button>
-          {% if p.foto %}<button type="submit" name="quitar" value="si">Quitar foto</button>{% endif %}
+          {% if p.foto %}<button class="accion-eliminar" type="submit" name="quitar" value="si">Quitar foto</button>{% endif %}
         </div>
         <p class="dato">Se recorta en cuadrado y se guarda en escala de grises.</p>
       </form>
@@ -231,7 +231,7 @@
           <span class="linea-texto">{{ h.texto }}</span>
           <span class="linea-acciones" data-solo-edicion>
             <form method="post" action="/hecho/{{ h.id }}/borrar">
-              <button class="discreto" type="submit">Quitar</button>
+              <button class="discreto accion-eliminar" type="submit">Quitar</button>
             </form>
           </span>
         </li>
@@ -342,6 +342,49 @@
           </div>
           <button class="boton-solido" type="submit">Enlazar</button>
         </form>
+
+        {% if otras %}
+        <details class="anadir enlazar-varias">
+          <summary>Enlazar con varias a la vez</summary>
+          <form method="post" action="/persona/{{ p.id }}/relaciones" data-enlazar-varias>
+            <p class="alta-ayuda">Misma etiqueta para todas las que marques. Cada una queda enlazada con {{ nombre_visible }}, no entre ellas.</p>
+            <div class="campos">
+              <div>
+                <label for="etiqueta-varias">Qué son para {{ nombre_visible }}</label>
+                <input id="etiqueta-varias" type="text" name="etiqueta" autocomplete="off" placeholder="Compañera, prima, vecina…" required>
+              </div>
+              <div>
+                <label for="inversa-varias">Qué es {{ nombre_visible }} para ellas</label>
+                <input id="inversa-varias" type="text" name="etiqueta_inversa" autocomplete="off" placeholder="Compañero, primo, vecino…">
+              </div>
+            </div>
+
+            <span class="rotulo-grupo">Marcar de golpe</span>
+            <div class="atajos-circulo">
+              {% for c in circulos %}
+              <button type="button" data-marcar-circulo="{{ c.id }}">{{ c.nombre }}</button>
+              {% endfor %}
+              <button type="button" data-marcar-circulo="">Ninguna</button>
+            </div>
+
+            <div class="gente">
+              {% for o in otras %}
+              <label data-nombre="{{ (o.nombre_visible ~ ' ' ~ o.nombre)|lower }}"
+                     data-circulo="{{ o.circulo_id or '' }}">
+                <input type="checkbox" name="personas" value="{{ o.id }}">
+                <span>{{ o.nombre_visible }}</span>
+                {% if o.circulo %}<span class="donde">{{ o.circulo }}</span>{% endif %}
+              </label>
+              {% endfor %}
+            </div>
+
+            <div class="acciones">
+              <button class="boton-solido" type="submit">Enlazar con las marcadas</button>
+              <span class="dato" data-cuenta-varias aria-live="polite">Nadie marcado</span>
+            </div>
+          </form>
+        </details>
+        {% endif %}
       </div>
     </div>
   </section>
@@ -374,6 +417,6 @@
 
 <form class="zona-peligrosa" method="post" action="/persona/{{ p.id }}/borrar" data-confirmar="Se va {{ nombre_visible }} con todo lo suyo. Las quedadas se quedan. ¿Seguro?">
   <p>Esta acción quita a la persona, sus datos y sus asuntos. Las quedadas se conservan.</p>
-  <button type="submit">Quitar a {{ nombre_visible }}</button>
+  <button class="accion-eliminar" type="submit">Quitar a {{ nombre_visible }}</button>
 </form>
 {% endblock %}

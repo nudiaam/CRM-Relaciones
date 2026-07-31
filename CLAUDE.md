@@ -130,6 +130,8 @@ deliberada, nunca decorada por nostalgia sin función.
 
 - Sólo papel `#f4efe1` y tinta `#14120f`; noche invierte ambos. El color guardado
   de una persona sigue siendo un dato editable, pero no rompe la interfaz 1-bit.
+  **Única excepción**: `--alarma`, un rojo rebajado que aparece sólo al señalar
+  con el ratón un botón que borra. En reposo esos botones siguen grises.
 - Departure Mono se incluye localmente en `estatico/tipos/` bajo SIL OFL. Se usa
   a 11px para navegación, controles y rótulos. El texto largo usa serif a 16px.
 - Títulos personales a 33px. Cuerpo a 16px. Interfaz a 11px.
@@ -137,7 +139,19 @@ deliberada, nunca decorada por nostalgia sin función.
   tramas binarias sin grises.
 - Las secciones se separan con aire, filete y un pequeño cuadrado de tinta.
   Las bandas negras se reservan para acciones o estados seleccionados; no se
-  repiten como cabecera de todos los paneles.
+  repiten como cabecera de todos los paneles. **Única excepción**: en la ficha
+  completa (`/persona/{id}`) cada bloque sí lleva su cabecera rellena, porque
+  sin ella no se distinguía dónde acaba una sección y empieza su contenido.
+  Fuera de esa pantalla la regla sigue entera.
+- **Toda superficie rellena usa `var(--inverso-fondo)` y `var(--inverso-texto)`,
+  nunca tinta y papel crudos.** En día dan lo mismo; en noche, la tinta cruda es
+  crema y produce una caja brillante que no pega con nada. Las marcas pequeñas
+  —el cuadrado, un filete, el punto de hoy— sí usan `var(--tinta)`, que ahí
+  significa el color del trazo. La norma completa está junto a las variables en
+  `estilo.css` y la comprueba `python mapa/comprobar.py`.
+- **Todo `:hover` vive dentro de un `@media (hover: hover)`.** En una pantalla
+  táctil el hover se queda pegado tras el toque y deja los desplegables en
+  blanco. `:focus-visible` va fuera, que hace falta con teclado.
 - *Queda pendiente* conserva su filete exterior, pero no lleva retícula ni otra
   trama decorativa detrás del encabezado o del contenido.
 - Los controles tienen al menos 40px de alto y el foco de teclado usa un
@@ -226,6 +240,18 @@ Si parece que algo de esto mejoraría la app: no se hace, se dice.
 - Ningún diario personal: esto registra a otras personas, no al usuario.
 - Nada de "persona en pausa" (pedido y descartado explícitamente).
 - Ninguna otra forma de clasificar gente aparte del círculo.
+
+## El mapa del código
+
+Antes de buscar nada a mano, mira `mapa/`. Dice a qué archivo, sección y línea
+ir, con anclas de texto que no envejecen: `backend.md`, `pantallas.md`,
+`estilos.md`, `interaccion.md` y `decisiones.md`.
+
+`python mapa/comprobar.py` comprueba que el mapa siga siendo cierto, que los
+`id` que usa `app.py` para redirigir existan, la norma de los dos modos, que
+todos los botones que borran lleven `accion-eliminar` y que ningún `:hover` se
+escape del `@media`. **Si se toca código, se actualiza el mapa en el mismo
+cambio**, igual que el registro de aquí abajo.
 
 ## Cómo trabajar aquí
 
@@ -629,3 +655,97 @@ nada: primero hay que quitarlas.
 - No se tocó la base de datos ni el esquema. Ninguna foto existente se
   reconvierte: las que ya estaban siguen guardadas en 1 bit hasta que se
   vuelvan a subir.
+
+### 2026-07-31 — Controles propios, la ficha rehecha y el mapa del código
+
+**Se acabaron los controles nativos.**
+
+- El **círculo** deja de ser un `<select>` en el alta y en la ficha: ahora es
+  una lista de radios visible, con su cuadrado de tinta y filas de 40px. Sin
+  JavaScript, sin desplegable y sin teclado posible.
+- La **fecha** de una quedada deja de ser `<input type="date">`: seis atajos
+  (*hoy*, *ayer* y cuatro días más), la fecha elegida en palabras y un
+  calendario propio plegado detrás de *Otro día*. Todo son botones, así que
+  desplegarlo no abre el teclado. El nativo se conserva en un `<noscript>`, y
+  el campo que viaja lo crea el JavaScript para que nunca se envíen dos.
+- Repaso completo: el único control del sistema que queda es el diálogo de
+  archivos al subir una foto, que no se puede sustituir.
+
+**La ficha completa se rehízo como continuación de la comprimida de la red.**
+
+- Mismo marco, misma cabecera con foto e identidad, misma etiqueta con filete y
+  contador. Lo que **no** se hereda es la retícula: aquí se lee todo entero, en
+  una columna en móvil, y no se trunca nunca.
+- Desapareció el triple encuadre de *En marcha*: ya no hay título, ni cajas
+  `tarjeta-accion`, ni rótulos dentro de rótulos. Quedan dos bloques hermanos.
+- **En reposo no hay un solo botón dentro del contenido.** Cada bloque entra en
+  edición por su cuenta y sólo entonces enseña añadir, cerrar, quitar o editar.
+  Abrir uno no abre los demás. La navegación —páginas, enlaces a otra persona,
+  *Sigue*— no es edición y se ve siempre.
+- Cada bloque se pliega, con su etiqueta y su contador visibles plegado.
+- Las acciones se apoyan en la **línea base** de su frase, no a media altura.
+- `PERSONA / 0009` se conserva a petición expresa. *Apuntar algo* baja a botón
+  normal: lo más grande de la pantalla vuelve a ser el nombre.
+- La edición de la persona y la foto son ahora el modo edición de la cabecera.
+  *Quitar a X* sigue abajo del todo, fuera de ella.
+- La **zona peligrosa** se rediseñó: la trama binaria deja de ser fondo —
+  recortaba el texto con parches de anchos distintos— y pasa a ser dos bandas
+  de altura fija arriba y abajo, como un precinto, dentro de una caja con
+  filete y con el contenido en papel limpio.
+
+**Los dos modos, con norma escrita.**
+
+- La causa de los desajustes era pintar superficies rellenas con `var(--tinta)`
+  cruda: en noche eso es crema y salía una caja brillante. La norma está ahora
+  en el propio `estilo.css` y la comprueba `mapa/comprobar.py`.
+- **Todos los `:hover` se envolvieron en `@media (hover: hover)`**, 39 reglas:
+  22 hubo que partirlas porque mezclaban selectores con y sin hover. Se hizo
+  con PostCSS instalado **fuera del proyecto**, que aquí no entra npm, y se
+  verificó que los 817 selectores sin hover siguen existiendo en el mismo
+  orden, que ningún `@media` original perdió reglas y que no quedó ningún
+  `(hover: hover)` anidado dentro de otro igual.
+- El rojo de borrar se separó en `--alarma` y `--alarma-texto`: el contraste
+  sube de 5,1 a 6,8 de día y de 5,6 a 9,1 de noche. Lo llevan ahora **todos**
+  los botones que borran, no sólo algunos.
+- *Explorar la red* recupera su relleno de tinta y pierde el cuadrado de la
+  izquierda. Necesitó una regla propia para noche porque es un `<button>` y le
+  llegaba el fondo de los botones del panel.
+
+**Enlazar con varias.** Ruta nueva `POST /persona/{id}/relaciones`: se marcan
+varias personas, se escribe un solo par de etiquetas y quedan todas enlazadas
+con esa persona —no entre ellas—, con atajos que marcan un círculo entero. La
+lógica de enlazar se extrajo a `enlazar()`, compartida con la ruta de una sola,
+así que se conserva el caso de la relación que ya existe al revés.
+
+**La red agrupa por círculo.** Cada círculo recibe una dirección propia en la
+esfera repartida con una espiral de Fibonacci, y una fuerza floja mantiene ahí a
+su gente. Quien no tiene círculo no se agrupa. El valor se eligió midiendo con
+las 27 personas reales: la proporción de distancia dentro/fuera del círculo baja
+de 0,42 a 0,30 y el largo medio de una línea de 250 a 227, sin apelmazar los
+puntos. **No se tocó qué se conecta con quién**: los radios al centro siguen
+igual, a la espera de decidir cómo se marca «conectado a mí».
+
+**Arreglos de móvil.** La × del buscador se estira de arriba abajo del campo y
+su filete llega a las esquinas. El *Editar* de cada relación se ancla a su fila
+y ya no se va al centro del formulario al abrirse. La ficha de la red nace sin
+aceptar pulsaciones durante 350 ms, para comerse el clic fantasma que abría la
+ficha completa sin querer; es un apaño, lo correcto sería que ese clic no
+llegara a generarse.
+
+**El mapa del código.** Carpeta `mapa/` con cinco documentos y un comprobador en
+Python de la estándar. Existe para no releer 5.000 líneas cada vez.
+
+**Limpieza.** Se eliminaron `.pestanas` y `.ficha-indice`, restos de las
+pestañas y el índice retirados hace tiempo: 0 usos, 18 reglas y 133 líneas
+fuera. Sigue habiendo CSS muerto de la ficha vieja (`.apartado`,
+`.tarjeta-accion`, `.cosas`, `.dice`, `.aparte`, `.ficha-resumen`) pendiente de
+una pasada aparte.
+
+**Dos excepciones de estilo**, pedidas expresamente y anotadas arriba en su
+regla: la cabecera rellena por bloque, sólo en la ficha completa, y el rojo,
+sólo al señalar un borrado.
+
+- Las altas y ediciones se probaron **sobre una copia temporal de `datos.db`**;
+  la base real quedó intacta. No se cambió el esquema. La única consulta que se
+  tocó añade `circulo_id` a la lista de otras personas de la ficha.
+- Los recursos estáticos van por `?v=20260731h`.

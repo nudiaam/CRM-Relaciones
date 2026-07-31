@@ -58,7 +58,7 @@
         {% endif %}
         <form method="post" action="/circulo/{{ c.id }}/borrar" data-confirmar="Se quita el círculo «{{ c.nombre }}». La gente que estaba dentro se queda sin círculo, pero no se borra. ¿Seguro?">
           <input type="hidden" name="volver" value="/ajustes">
-          <button class="discreto" type="submit">Quitar</button>
+          <button class="discreto accion-eliminar" type="submit">Quitar</button>
         </form>
       </div>
     </li>
