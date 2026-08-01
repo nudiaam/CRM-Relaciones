@@ -721,7 +721,7 @@ def lista_personas(
         "personas": personas,
         "circulos": circulos(con),
         "personas_alta": con.execute(
-            "SELECT p.id, "
+            "SELECT p.id, p.circulo_id, "
             f"{NOMBRE_VISIBLE_SQL} AS nombre_visible, c.nombre AS circulo "
             "FROM persona p LEFT JOIN circulo c ON c.id = p.circulo_id "
             "ORDER BY nombre_visible COLLATE NOCASE"
@@ -772,6 +772,9 @@ def crear_persona(
     otras: list[str] = Form(default=[]),
     etiquetas: list[str] = Form(default=[]),
     inversas: list[str] = Form(default=[]),
+    varias: list[str] = Form(default=[]),
+    etiqueta_varias: str = Form(""),
+    inversa_varias: str = Form(""),
     volver: str = Form("/personas"),
 ):
     nombre = nombre.strip()
@@ -811,6 +814,27 @@ def crear_persona(
                 (persona_id, otra_id, etiqueta, inversa),
             )
             enlazadas.add(otra_id)
+
+        # Las marcadas de golpe: mismo par de etiquetas para todas. Van
+        # después, así que una fila escrita a mano manda sobre la marca.
+        etiqueta_grupo = etiqueta_varias.strip()
+        inversa_grupo = inversa_varias.strip()
+        if etiqueta_grupo:
+            for marcada in varias:
+                if not marcada.isdigit():
+                    continue
+                otra_id = int(marcada)
+                if otra_id in enlazadas or not con.execute(
+                    "SELECT 1 FROM persona WHERE id = ?", (otra_id,)
+                ).fetchone():
+                    continue
+                con.execute(
+                    "INSERT INTO relacion "
+                    "(persona_a, persona_b, etiqueta, etiqueta_inversa) "
+                    "VALUES (?, ?, ?, ?)",
+                    (persona_id, otra_id, etiqueta_grupo, inversa_grupo),
+                )
+                enlazadas.add(otra_id)
     con.close()
     carpeta = str(circulo_elegido) if circulo_elegido is not None else "ninguno"
     volver_archivo = f"/personas?circulo={carpeta}#archivo"

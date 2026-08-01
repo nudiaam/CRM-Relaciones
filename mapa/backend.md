@@ -35,7 +35,8 @@ Busca el ancla con `grep`; el número es orientativo.
 | Cambiar cuántas quedadas por página | 904 | `QUEDADAS_POR_PAGINA` |
 | Tocar el tratamiento de fotos | 1039 | `async def cambiar_foto` |
 | Crear o actualizar una relación | busca | `def enlazar(` |
-| Enlazar con varias de golpe | busca | `def crear_relaciones` |
+| Enlazar con varias desde la ficha | busca | `def crear_relaciones` |
+| Enlazar con varias al dar de alta | busca | `etiqueta_varias` |
 | Cambiar los avisos de foto fallida | 907 | `FALLOS_FOTO = {` |
 | Tocar lo que come la red | 1406 | `def api_grafo` |
 | Tocar la copia de todo | busca | `TABLAS_EXPORTABLES` |

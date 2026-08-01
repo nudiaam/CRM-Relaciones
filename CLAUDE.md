@@ -777,3 +777,61 @@ sólo al señalar un borrado.
   el CSS y en `mapa/estilos.md` por si se retoma.
 - No se tocó la base, el esquema ni qué información se muestra. Los recursos
   van por `?v=20260731i`.
+
+### 2026-07-31 — Enlazar con varias, también al dar de alta
+
+- *Enlazar con varias* se había quedado **sólo en la ficha** de alguien que ya
+  existe, que es la mitad del problema: el trabajo pesado está al **dar de
+  alta**, cuando llega un compañero nuevo y hay que enlazarlo con los otros
+  seis de uno en uno.
+- El paso 02 del alta tiene ahora el mismo componente: casillas con toda la
+  gente, atajos que marcan un círculo entero y **un solo par de etiquetas**
+  para todas. Convive con las filas sueltas de siempre.
+- Si alguien sale en las dos, **manda la fila suelta**: el grupo se aplica
+  después y salta a quien ya está enlazado. Así una etiqueta escrita a mano no
+  se pisa con la del grupo.
+- Sin etiqueta de grupo no se enlaza nada, aunque haya casillas marcadas.
+- Con esto no hace falta ninguna acción de «todos contra todos»: **si vas
+  dando de alta a la gente marcando al grupo cada vez, el resultado es el
+  mismo**, cada nuevo se enlaza con todos los anteriores, y sin generar
+  relaciones que tú no hayas elegido.
+- `crear_persona` recibe `varias[]`, `etiqueta_varias` e `inversa_varias`. El
+  bloque 9 quater de `app.js` pasó a recorrer **todas** las instancias del
+  componente, que ahora hay dos.
+- Probado **sobre una copia de `datos.db`**: alta con una fila suelta más los
+  siete de Trabajo → 8 relaciones, la etiqueta escrita a mano intacta, y sin
+  etiqueta de grupo no enlaza nada. La base real quedó intacta.
+- Los recursos van por `?v=20260731j`.
+
+### 2026-07-31 — El bloque de enlazar, legible, y el aviso de borrar propio
+
+- **Enlazar con varias** se veía mal: el texto de ayuda se montaba encima del
+  desplegable, todo era una plancha de un solo tono y salían las 27 personas de
+  golpe dentro de un cajón con barra propia.
+  - El solape era `.alta-ayuda`, que lleva `margin-top: -8px` para pegarse al
+    título de su bloque; dentro del `<details>` eso la subía sobre el `summary`.
+    Ahora tiene clase propia.
+  - El bloque se parte en **tres apartados con filete**, cada uno con su rótulo
+    y su cuadrado de tinta: *qué papel*, *marcar un círculo entero*, *quiénes*.
+  - La gente va **por páginas**: nueve en escritorio, seis en móvil, con flechas
+    y contador. Se fue el desplazamiento interno.
+  - En móvil, dos columnas en vez de tres.
+  - Lo que se marca en una página **no se pierde al cambiar de página**: sólo se
+    oculta. Comprobado: 7 marcadas, 4 fuera de la página visible, 7 en el envío.
+  - De paso: la primera pintada usaba el tamaño de página del ancho que hubiera
+    al cargar, así que un bloque plegado podía abrirse con seis por página en
+    escritorio. Ahora también recalcula al desplegar.
+- **El aviso antes de borrar deja de ser el `confirm()` del navegador.** Salía
+  pegado arriba, sin estilo y anunciando la dirección del servidor. Ahora es un
+  `<dialog>` propio en `base.html`: centrado, con filete de 1px, rótulo *Esto no
+  se deshace*, el texto en serif y dos botones de 40px. El trasfondo usa una
+  trama binaria en vez de bajar la opacidad, como manda el estilo del proyecto.
+  El foco arranca en **Cancelar**.
+  - **La decisión cuelga del clic de cada botón, no del evento `close`.** Se
+    descubrió probando que en este navegador `close` **no se dispara nunca**,
+    ni siquiera llamando a `close()` a mano; de haberlo dejado así, borrar no
+    habría hecho nada y sin avisar. Si el navegador no tiene `<dialog>`, se cae
+    al `confirm()` de siempre antes que quedarse sin aviso.
+  - Comprobado: aceptar envía, cancelar y Escape no envían nada, y el diálogo
+    queda centrado y dentro de la pantalla también a 375px.
+- No se tocó la base ni el esquema. Los recursos van por `?v=20260731n`.

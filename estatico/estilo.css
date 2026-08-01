@@ -4145,20 +4145,145 @@ html[data-modo="noche"] .accion-eliminar:hover {
   min-height: 44px;
 }
 
-/* Enlazar con varias: los atajos de círculo y la lista de casillas. */
+/* 2026-07-31 · El aviso antes de borrar, con la cara de la app.
+   Sustituye al confirm() del navegador: centrado, con filete y sin el rótulo
+   de la dirección del servidor. */
+
+.confirmar {
+  width: min(420px, calc(100vw - 32px));
+  margin: auto;                 /* centrado, no pegado arriba */
+  padding: 0;
+  color: var(--tinta);
+  background: var(--papel);
+  border: var(--filete);
+}
+
+/* Trama binaria en vez de bajar la opacidad, como el resto de la app. Los
+   colores van literales porque la herencia de variables en `::backdrop` no es
+   fiable en todos los navegadores; por eso hay una regla propia para noche. */
+.confirmar::backdrop {
+  background-color: #f4efe1;
+  background-image:
+    linear-gradient(45deg, #14120f 25%, transparent 25%, transparent 75%, #14120f 75%),
+    linear-gradient(45deg, #14120f 25%, transparent 25%, transparent 75%, #14120f 75%);
+  background-position: 0 0, 2px 2px;
+  background-size: 4px 4px;
+}
+
+html[data-modo="noche"] .confirmar::backdrop {
+  background-color: #23241f;
+  background-image:
+    linear-gradient(45deg, #000 25%, transparent 25%, transparent 75%, #000 75%),
+    linear-gradient(45deg, #000 25%, transparent 25%, transparent 75%, #000 75%);
+}
+
+.confirmar-rotulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 16px;
+  border-bottom: var(--filete);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.confirmar-rotulo::before {
+  content: "";
+  display: block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: var(--tinta);
+}
+
+.confirmar-texto {
+  margin: 0;
+  padding: 20px 16px;
+  font-family: var(--lectura);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.confirmar-acciones {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: var(--filete);
+}
+
+.confirmar-acciones > button {
+  min-height: 40px;
+  margin: 0;
+}
+
+/* Enlazar con varias. Tres apartados separados por filete, cada uno con su
+   rótulo y su cuadrado de tinta, para que no sea una plancha de un solo tono.
+   La gente va por páginas, no en un cajón con barra propia. */
 .enlazar-varias {
   margin-top: 24px;
 }
 
-.enlazar-varias .rotulo-grupo {
-  margin-top: 16px;
+.varias-cuerpo {
+  margin-top: 12px;
+  border: var(--filete);
+}
+
+/* `.alta-ayuda` lleva un margen negativo para pegarse al título de su bloque;
+   aquí eso la montaba encima del desplegable. */
+.varias-ayuda {
+  margin: 0;
+  padding: 12px 16px;
+  border-bottom: var(--filete);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.varias-seccion {
+  padding: 16px;
+}
+
+.varias-seccion + .varias-seccion {
+  border-top: var(--filete);
+}
+
+.varias-rotulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.varias-rotulo::before {
+  content: "";
+  display: block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: var(--tinta);
+}
+
+.varias-rotulo .dato {
+  margin-left: auto;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .atajos-circulo {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 16px;
 }
 
 .atajos-circulo > button {
@@ -4171,12 +4296,34 @@ html[data-modo="noche"] .accion-eliminar:hover {
   text-transform: uppercase;
 }
 
+/* Sin cajón con barra propia: la lista cabe entera porque va por páginas. */
 .enlazar-varias .gente {
   max-height: none;
+  margin-top: 0;
+  overflow: visible;
 }
 
-.enlazar-varias .acciones {
-  margin-top: 16px;
+.enlazar-varias .gente-paginacion {
+  margin-top: -1px;
+}
+
+.varias-acciones {
+  padding: 16px;
+  border-top: var(--filete);
+}
+
+@media (max-width: 640px) {
+  .enlazar-varias .gente {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .varias-seccion {
+    padding: 12px;
+  }
+
+  .atajos-circulo > button {
+    flex: 1 1 auto;
+  }
 }
 
 /* Una sola columna también en escritorio: en dos, la etiqueta y su valor

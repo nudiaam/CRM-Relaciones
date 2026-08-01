@@ -46,9 +46,24 @@ editar, su botón *Editar*.
 
 ## `personas.html`
 
-Cabecera, bloque *Añadir persona* (con relaciones iniciales clonables) y el
-archivador de tres columnas: carpetas · lista · ficha rápida. El archivador se
-recarga por trozos desde `app.js` bloque 10.
+Cabecera, bloque *Añadir persona* y el archivador de tres columnas: carpetas ·
+lista · ficha rápida. El archivador se recarga por trozos desde `app.js`
+bloque 10.
+
+El paso 02 del alta tiene **dos maneras** de enlazar, y se pueden usar a la vez:
+
+- **Filas sueltas** (`data-relacion-alta`), clonables, cada una con su persona y
+  su par de etiquetas. Viajan como `otras[] / etiquetas[] / inversas[]`.
+- **Enlazar con varias** (`data-enlazar-varias`): casillas, atajos por círculo y
+  un solo par de etiquetas. Viaja como `varias[] / etiqueta_varias /
+  inversa_varias`.
+
+Si alguien sale en las dos, **manda la fila suelta**: el grupo se aplica después
+y salta a quien ya está enlazado.
+
+El mismo componente vive también en la ficha, dentro del bloque *Relaciones*,
+apuntando a `/persona/{id}/relaciones`. Los dos comparten estilos y el bloque
+9 quater de `app.js`, que recorre **todas** las instancias.
 
 ## `nota.html`
 

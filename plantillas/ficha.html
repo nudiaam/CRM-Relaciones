@@ -347,40 +347,55 @@
         <details class="anadir enlazar-varias">
           <summary>Enlazar con varias a la vez</summary>
           <form method="post" action="/persona/{{ p.id }}/relaciones" data-enlazar-varias>
-            <p class="alta-ayuda">Misma etiqueta para todas las que marques. Cada una queda enlazada con {{ nombre_visible }}, no entre ellas.</p>
-            <div class="campos">
-              <div>
-                <label for="etiqueta-varias">Qué son para {{ nombre_visible }}</label>
-                <input id="etiqueta-varias" type="text" name="etiqueta" autocomplete="off" placeholder="Compañera, prima, vecina…" required>
+            <div class="varias-cuerpo">
+              <p class="varias-ayuda">Misma etiqueta para todas las que marques. Cada una queda enlazada con {{ nombre_visible }}, no entre ellas.</p>
+
+              <div class="varias-seccion">
+                <span class="varias-rotulo">Qué papel</span>
+                <div class="campos">
+                  <div>
+                    <label for="etiqueta-varias">Qué son para {{ nombre_visible }}</label>
+                    <input id="etiqueta-varias" type="text" name="etiqueta" autocomplete="off" placeholder="Compañera, prima, vecina…" required>
+                  </div>
+                  <div>
+                    <label for="inversa-varias">Qué es {{ nombre_visible }} para ellas</label>
+                    <input id="inversa-varias" type="text" name="etiqueta_inversa" autocomplete="off" placeholder="Compañero, primo, vecino…">
+                  </div>
+                </div>
               </div>
-              <div>
-                <label for="inversa-varias">Qué es {{ nombre_visible }} para ellas</label>
-                <input id="inversa-varias" type="text" name="etiqueta_inversa" autocomplete="off" placeholder="Compañero, primo, vecino…">
+
+              <div class="varias-seccion">
+                <span class="varias-rotulo">Marcar un círculo entero</span>
+                <div class="atajos-circulo">
+                  {% for c in circulos %}
+                  <button type="button" data-marcar-circulo="{{ c.id }}">{{ c.nombre }}</button>
+                  {% endfor %}
+                  <button type="button" data-marcar-circulo="">Ninguna</button>
+                </div>
               </div>
-            </div>
 
-            <span class="rotulo-grupo">Marcar de golpe</span>
-            <div class="atajos-circulo">
-              {% for c in circulos %}
-              <button type="button" data-marcar-circulo="{{ c.id }}">{{ c.nombre }}</button>
-              {% endfor %}
-              <button type="button" data-marcar-circulo="">Ninguna</button>
-            </div>
+              <div class="varias-seccion varias-seccion-gente">
+                <span class="varias-rotulo">Quiénes <span class="dato" data-cuenta-varias aria-live="polite">Nadie marcado</span></span>
+                <div class="gente" data-varias-gente>
+                  {% for o in otras %}
+                  <label data-nombre="{{ (o.nombre_visible ~ ' ' ~ o.nombre)|lower }}"
+                         data-circulo="{{ o.circulo_id or '' }}">
+                    <input type="checkbox" name="personas" value="{{ o.id }}">
+                    <span>{{ o.nombre_visible }}</span>
+                    {% if o.circulo %}<span class="donde">{{ o.circulo }}</span>{% endif %}
+                  </label>
+                  {% endfor %}
+                </div>
+                <nav class="gente-paginacion" data-varias-paginacion aria-label="Páginas de personas">
+                  <button type="button" data-varias-anterior aria-label="Personas anteriores">←</button>
+                  <span data-varias-pagina>PÁGINA 1 / 1</span>
+                  <button type="button" data-varias-siguiente aria-label="Personas siguientes">→</button>
+                </nav>
+              </div>
 
-            <div class="gente">
-              {% for o in otras %}
-              <label data-nombre="{{ (o.nombre_visible ~ ' ' ~ o.nombre)|lower }}"
-                     data-circulo="{{ o.circulo_id or '' }}">
-                <input type="checkbox" name="personas" value="{{ o.id }}">
-                <span>{{ o.nombre_visible }}</span>
-                {% if o.circulo %}<span class="donde">{{ o.circulo }}</span>{% endif %}
-              </label>
-              {% endfor %}
-            </div>
-
-            <div class="acciones">
-              <button class="boton-solido" type="submit">Enlazar con las marcadas</button>
-              <span class="dato" data-cuenta-varias aria-live="polite">Nadie marcado</span>
+              <div class="varias-acciones">
+                <button class="boton-solido" type="submit">Enlazar con las marcadas</button>
+              </div>
             </div>
           </form>
         </details>

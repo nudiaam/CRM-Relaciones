@@ -97,6 +97,57 @@
         </div>
       </div>
       <button type="button" data-anadir-relacion>Añadir otra relación</button>
+
+      {% if personas_alta %}
+      <details class="anadir enlazar-varias" data-enlazar-varias>
+        <summary>Enlazar con varias a la vez</summary>
+        <div class="varias-cuerpo">
+          <p class="varias-ayuda">Para cuando el grupo entero comparte el mismo papel: los compañeros de trabajo, los primos, la gente del barrio. Se enlazan todas con la persona nueva, no entre ellas.</p>
+
+          <div class="varias-seccion">
+            <span class="varias-rotulo">Qué papel</span>
+            <div class="campos">
+              <div>
+                <label for="etiqueta-varias-alta">Qué son para la nueva persona</label>
+                <input id="etiqueta-varias-alta" type="text" name="etiqueta_varias" autocomplete="off" placeholder="Compañera, prima, vecina…">
+              </div>
+              <div>
+                <label for="inversa-varias-alta">Qué será la nueva persona para ellas</label>
+                <input id="inversa-varias-alta" type="text" name="inversa_varias" autocomplete="off" placeholder="Compañero, primo, vecino…">
+              </div>
+            </div>
+          </div>
+
+          <div class="varias-seccion">
+            <span class="varias-rotulo">Marcar un círculo entero</span>
+            <div class="atajos-circulo">
+              {% for c in circulos %}
+              <button type="button" data-marcar-circulo="{{ c.id }}">{{ c.nombre }}</button>
+              {% endfor %}
+              <button type="button" data-marcar-circulo="">Ninguna</button>
+            </div>
+          </div>
+
+          <div class="varias-seccion varias-seccion-gente">
+            <span class="varias-rotulo">Quiénes <span class="dato" data-cuenta-varias aria-live="polite">Nadie marcado</span></span>
+            <div class="gente" data-varias-gente>
+              {% for p in personas_alta %}
+              <label data-nombre="{{ p.nombre_visible|lower }}" data-circulo="{{ p.circulo_id or '' }}">
+                <input type="checkbox" name="varias" value="{{ p.id }}">
+                <span>{{ p.nombre_visible }}</span>
+                {% if p.circulo %}<span class="donde">{{ p.circulo }}</span>{% endif %}
+              </label>
+              {% endfor %}
+            </div>
+            <nav class="gente-paginacion" data-varias-paginacion aria-label="Páginas de personas">
+              <button type="button" data-varias-anterior aria-label="Personas anteriores">←</button>
+              <span data-varias-pagina>PÁGINA 1 / 1</span>
+              <button type="button" data-varias-siguiente aria-label="Personas siguientes">→</button>
+            </nav>
+          </div>
+        </div>
+      </details>
+      {% endif %}
     </section>
 
     <div class="alta-acciones">

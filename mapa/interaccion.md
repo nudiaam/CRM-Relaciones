@@ -14,18 +14,28 @@ lo demás espera a `DOMContentLoaded`.
 | 3 | Tecla `N` para apuntar desde cualquier sitio | 64 |
 | 4 | `Ctrl + Enter` guarda la nota | 77 |
 | 5 | Filtro, contador y páginas de personas en Apuntar | 86 |
-| 6 | Confirmación al borrar algo grande | 164 |
+| 6 | **Aviso propio antes de borrar** (`<dialog>`, no `confirm()`) | 164 |
 | 7 | Foco al abrir un `details.anadir` | 171 |
 | 8 | Selectores integrados de persona y canal | 180 |
 | 9 | Varias relaciones en el alta | 374 |
 | 9 bis | **Control de fecha**: atajos y calendario | 429 |
 | 9 ter | **Ficha: plegado y edición por bloque** | 565 |
-| 9 quater | **Enlazar con varias**: atajos por círculo | 605 |
+| 9 quater | **Enlazar con varias**: atajos por círculo. Recorre **todas** las instancias: hay una en el alta y otra en la ficha | 605 |
 | 10 | Archivador sin recargar | 605 |
 | 11 | Conservar la posición vertical al recargar | 702 |
 
 **El bloque 2 no existe**: era el foco automático del texto de Apuntar, que se
 quitó porque abría el teclado solo en el móvil.
+
+### El aviso antes de borrar
+
+El `<dialog class="confirmar">` vive en `base.html`, uno por página. El texto
+sale de `data-confirmar` del formulario, igual que antes.
+
+**No cuelgues nada del evento `close` del diálogo.** Hay navegadores donde no
+se dispara —comprobado en el que usa esta app—, y ahí borrar se quedaría en
+nada sin decir por qué. La decisión va en el **clic** de cada botón. Si el
+navegador no tiene `showModal`, se cae al `confirm()` de siempre.
 
 ### Reglas que hay que respetar
 

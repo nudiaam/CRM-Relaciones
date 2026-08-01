@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titulo %}Relaciones{% endblock %}</title>
-  <link rel="stylesheet" href="/estatico/estilo.css?v=20260731i">
-  <script src="/estatico/app.js?v=20260731i"></script>
+  <link rel="stylesheet" href="/estatico/estilo.css?v=20260731n">
+  <script src="/estatico/app.js?v=20260731n"></script>
 </head>
 <body class="{% block clase_body %}{% endblock %}">
   <a class="saltar" href="#contenido">Saltar al contenido</a>
@@ -25,5 +25,18 @@
   {% block cuerpo %}
   <main class="hoja" id="contenido"{% block acento %}{% endblock %}>{% block contenido %}{% endblock %}</main>
   {% endblock %}
+
+  {# Sustituye al confirm() del navegador, que sale arriba, sin estilo y
+     anunciando la dirección del servidor. #}
+  <dialog class="confirmar" id="confirmar" aria-labelledby="confirmar-rotulo">
+    <form method="dialog">
+      <p class="confirmar-rotulo" id="confirmar-rotulo">Esto no se deshace</p>
+      <p class="confirmar-texto" data-confirmar-texto></p>
+      <div class="confirmar-acciones">
+        <button class="discreto" type="submit" value="no" data-confirmar-no>Cancelar</button>
+        <button class="discreto accion-eliminar" type="submit" value="si" data-confirmar-si>Eliminar</button>
+      </div>
+    </form>
+  </dialog>
 </body>
 </html>

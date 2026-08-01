@@ -161,10 +161,65 @@
       mostrarPagina();
     }
 
-    // 6. Confirmación sólo donde se borra algo grande.
+    // 6. Confirmación sólo donde se borra algo grande. Diálogo propio en vez
+    //    del confirm() del navegador, que sale pegado arriba, sin estilo y
+    //    anunciando la dirección del servidor. Si el navegador no soporta
+    //    <dialog>, se cae al confirm() de siempre antes que quedarse sin aviso.
+    var dialogo = document.getElementById('confirmar');
+    var textoDialogo = dialogo && dialogo.querySelector('[data-confirmar-texto]');
+    var puedeDialogo = dialogo && typeof dialogo.showModal === 'function';
+    var pendiente = null;
+
+    function enviarPendiente() {
+      var f = pendiente;
+      pendiente = null;
+      if (!f) return;
+      f.dataset.confirmado = 'si';
+      if (f.requestSubmit) f.requestSubmit(); else f.submit();
+    }
+
+    if (puedeDialogo) {
+      // La decisión cuelga del clic de cada botón, no del evento `close` del
+      // diálogo: hay navegadores donde `close` no llega a dispararse, y ahí
+      // borrar se quedaría en nada sin decir por qué.
+      var siDialogo = dialogo.querySelector('[data-confirmar-si]');
+      var noDialogo = dialogo.querySelector('[data-confirmar-no]');
+      if (siDialogo) {
+        siDialogo.addEventListener('click', function () {
+          dialogo.close('si');
+          enviarPendiente();
+        });
+      }
+      if (noDialogo) {
+        noDialogo.addEventListener('click', function () {
+          pendiente = null;
+          dialogo.close('no');
+        });
+      }
+      // Escape cierra sin borrar, que es lo que se espera.
+      dialogo.addEventListener('cancel', function () { pendiente = null; });
+    }
+
     document.querySelectorAll('[data-confirmar]').forEach(function (f) {
       f.addEventListener('submit', function (ev) {
-        if (!confirm(f.dataset.confirmar)) ev.preventDefault();
+        if (f.dataset.confirmado === 'si') {
+          delete f.dataset.confirmado;
+          return;
+        }
+        ev.preventDefault();
+        if (!puedeDialogo) {
+          if (confirm(f.dataset.confirmar)) {
+            pendiente = f;
+            enviarPendiente();
+          }
+          return;
+        }
+        pendiente = f;
+        textoDialogo.textContent = f.dataset.confirmar;
+        dialogo.returnValue = 'no';
+        dialogo.showModal();
+        // El foco arranca en Cancelar: borrar nunca es el camino por inercia.
+        if (noDialogo) noDialogo.focus();
       });
     });
 
@@ -605,38 +660,79 @@
     // 9 quater. Enlazar con varias personas a la vez. Los atajos marcan un
     //           círculo entero, que es de donde salen los grupos que se
     //           repiten: compañeros, primos, gente del barrio.
-    var enlazarVarias = document.querySelector('[data-enlazar-varias]');
-    if (enlazarVarias) {
-      var casillasVarias = Array.from(
-        enlazarVarias.querySelectorAll('.gente input[type="checkbox"]')
+    //           Hay dos: el de la ficha y el del alta de una persona.
+    document.querySelectorAll('[data-enlazar-varias]').forEach(function (caja) {
+      var casillas = Array.from(
+        caja.querySelectorAll('.gente input[type="checkbox"]')
       );
-      var cuentaVarias = enlazarVarias.querySelector('[data-cuenta-varias]');
+      var cuenta = caja.querySelector('[data-cuenta-varias]');
 
-      function contarVarias() {
-        if (!cuentaVarias) return;
-        var n = casillasVarias.filter(function (c) { return c.checked; }).length;
-        cuentaVarias.textContent = n
+      var etiquetas = casillas.map(function (c) { return c.closest('label'); });
+      var pagina = caja.querySelector('[data-varias-pagina]');
+      var anterior = caja.querySelector('[data-varias-anterior]');
+      var siguiente = caja.querySelector('[data-varias-siguiente]');
+      var actual = 0;
+
+      function porPagina() {
+        return matchMedia('(max-width: 640px)').matches ? 6 : 9;
+      }
+
+      function contar() {
+        if (!cuenta) return;
+        var n = casillas.filter(function (c) { return c.checked; }).length;
+        cuenta.textContent = n
           ? n + (n === 1 ? ' marcada' : ' marcadas')
           : 'Nadie marcado';
       }
 
-      enlazarVarias.querySelectorAll('[data-marcar-circulo]').forEach(function (boton) {
+      // Las que no se ven siguen marcadas y siguen viajando en el envío: sólo
+      // se ocultan, no se desmarcan.
+      function mostrarPagina() {
+        var cuantas = porPagina();
+        var paginas = Math.max(1, Math.ceil(etiquetas.length / cuantas));
+        actual = Math.max(0, Math.min(actual, paginas - 1));
+        etiquetas.forEach(function (l, i) {
+          l.hidden = i < actual * cuantas || i >= (actual + 1) * cuantas;
+        });
+        if (pagina) pagina.textContent = 'PÁGINA ' + (actual + 1) + ' / ' + paginas;
+        if (anterior) anterior.disabled = actual === 0;
+        if (siguiente) siguiente.disabled = actual >= paginas - 1;
+      }
+
+      caja.querySelectorAll('[data-marcar-circulo]').forEach(function (boton) {
         boton.addEventListener('click', function () {
           var circulo = boton.dataset.marcarCirculo;
-          casillasVarias.forEach(function (casilla) {
+          casillas.forEach(function (casilla) {
             var suyo = casilla.closest('label').dataset.circulo;
             // Sin círculo en el botón: desmarcar todo.
             casilla.checked = circulo ? suyo === circulo : false;
           });
-          contarVarias();
+          contar();
         });
       });
 
-      casillasVarias.forEach(function (c) {
-        c.addEventListener('change', contarVarias);
-      });
-      contarVarias();
-    }
+      if (anterior) {
+        anterior.addEventListener('click', function () {
+          actual -= 1;
+          mostrarPagina();
+        });
+      }
+      if (siguiente) {
+        siguiente.addEventListener('click', function () {
+          actual += 1;
+          mostrarPagina();
+        });
+      }
+      addEventListener('resize', mostrarPagina);
+      // También al desplegar: si el bloque nace plegado, la primera cuenta se
+      // hizo con el ancho de entonces y podía quedarse obsoleta.
+      var plegable = caja.closest('details');
+      if (plegable) plegable.addEventListener('toggle', mostrarPagina);
+
+      casillas.forEach(function (c) { c.addEventListener('change', contar); });
+      contar();
+      mostrarPagina();
+    });
 
     // 10. El archivador cambia carpeta, persona y página en el mismo sitio.
     //     Conserva enlaces y formularios normales como respaldo, pero con
