@@ -1,129 +1,223 @@
 # Relaciones
 
-App personal para cultivar relaciones. Corre en tu ordenador, guarda todo en
-`datos.db` y **no habla con internet nunca**.
+Una agenda personal de relaciones. Un CRM privado para tu vida, no para el trabajo:
+guarda quién es cada persona que te importa, qué habéis hablado, qué quedó
+pendiente y cuándo fue la última vez que coincidisteis. Todo vive en tu propio
+ordenador; nada sale a la nube.
 
-## Arrancar
+La idea de fondo: en lugar de fiarlo todo a la memoria, apuntas las cosas —a mano
+o dictando un audio desde el móvil— y la aplicación las organiza por persona, con
+una vista de red que muestra cómo se relacionan entre sí.
 
-En Windows, basta con hacer doble clic en `Relaciones.exe`. El ejecutable abre
-la ventana sin PowerShell y guarda la información en el `datos.db` que tenga al
-lado. Si se mueve a otra carpeta, hay que mover también `datos.db` para llevarse
-los datos.
+---
 
-El archivo ronda los 29 MB porque es autónomo: lleva dentro Python, el servidor,
-la ventana y el tratamiento de imágenes para que no haya que instalar nada. No
-incluye un navegador completo; usa el WebView de Windows. El empaquetado excluye
-NumPy, una integración opcional que la app no necesita.
+## Qué hace
 
-Para arrancar desde el código:
+- **Fichas de personas.** Cada persona tiene su ficha: datos, círculo (familia,
+  amigos, trabajo…), foto, lo que tenéis pendiente, lo que quieres preguntarle y
+  el histórico de quedadas.
+- **Vista de red.** Un grafo que dibuja a las personas y sus relaciones, navegable
+  con el dedo en el móvil.
+- **Apuntar por voz.** Grabas un audio desde el móvil y la aplicación lo transcribe
+  y propone qué apuntar, para que tú lo confirmes. *(En construcción — ver más abajo.)*
+- **Acceso desde el móvil** a través de una red privada (Tailscale), sin abrir el
+  ordenador a internet.
+- **Privado por diseño.** La base de datos y los audios se quedan en tu máquina.
+  El repositorio nunca los incluye.
 
-La primera vez, instalar las dependencias:
+---
 
-```bash
+## Cómo está construido
+
+| Pieza | Tecnología |
+|---|---|
+| Servidor | Python + FastAPI |
+| Ventana de escritorio | pywebview |
+| Base de datos | SQLite (un solo archivo, `datos.db`) |
+| Interfaz | HTML + CSS + JavaScript, sin framework |
+| Acceso remoto | Tailscale (red privada entre tus dispositivos) |
+| Transcripción de audio | faster-whisper (modelo Whisper large-v3), local |
+| Análisis de texto | Ollama + Qwen3, local |
+
+Todo el procesamiento —incluida la voz y la IA— ocurre en tu ordenador. No se
+llama a ningún servicio externo.
+
+---
+
+## Requisitos
+
+- **Windows** (probado en Windows 11).
+- **Python 3.11.**
+- Para la parte de audio con aceleración por GPU: una **tarjeta NVIDIA**. El
+  proyecto se ha montado sobre una RTX 5090 (arquitectura Blackwell), que necesita
+  una versión concreta de PyTorch — ver más abajo.
+- **Tailscale**, si quieres acceder desde el móvil.
+
+> La parte de audio (Whisper + Ollama) es opcional. La aplicación funciona sin ella;
+> simplemente no tendrás el "apuntar por voz".
+
+---
+
+## Instalación
+
+### 1. Clonar el proyecto
+
+```
+git clone <url-del-repositorio>
+cd Relaciones
+```
+
+### 2. Crear el entorno virtual
+
+Aísla las dependencias del proyecto del Python del sistema.
+
+```
+python -m venv venv
+```
+
+Activarlo:
+
+- En **CMD**: `venv\Scripts\activate.bat`
+- En **PowerShell**: `& .\venv\Scripts\Activate.ps1`
+  *(si PowerShell bloquea el script, ejecuta antes `Set-ExecutionPolicy -Scope Process -Bypass`)*
+
+Sabrás que está activo porque la línea de comandos empieza por `(venv)`.
+
+### 3. Instalar las dependencias
+
+```
 pip install -r requisitos.txt
 ```
 
-Después, siempre:
+### 4. Arrancar
 
-```bash
+```
 python main.py
 ```
 
-Se abre una ventana de escritorio. En la consola verás algo así:
+Se abrirá la ventana de escritorio y, en la propia terminal, verás las direcciones
+de acceso y la llave para entrar desde la red.
+
+La aplicación escucha siempre en el **puerto 9765**. Si ese puerto está ocupado,
+avisa y no arranca (no busca otro puerto), para no romper el acceso configurado
+desde el móvil.
+
+---
+
+## Acceso desde el móvil
+
+La aplicación se sirve a sí misma; en el móvil no se instala nada, solo se abre en
+el navegador.
+
+1. Instala **Tailscale** en el ordenador y en el móvil, y entra con la **misma
+   cuenta** en los dos. Esto crea una red privada entre ellos.
+2. En el ordenador, deja la aplicación arrancada.
+3. Activa `tailscale serve` sobre el puerto 9765 para obtener una dirección segura
+   (`https://…ts.net`). El HTTPS es **imprescindible** para poder usar el micrófono
+   desde el navegador.
+4. Abre esa dirección `https://…ts.net` en el móvil. La primera vez pedirá la
+   **llave de acceso** (se muestra al arrancar la aplicación); luego la recuerda.
+
+Desde ahí puedes **añadir la aplicación a la pantalla de inicio** (es una PWA): se
+abre a pantalla completa, como una app normal.
+
+> **Nota sobre la dirección de Tailscale:** conviene apuntar cuál es tu dirección
+> `…ts.net`, porque es la que usa el acceso instalado en el móvil.
+
+---
+
+## La parte de audio (opcional)
+
+Esta es la funcionalidad de "apuntar por voz". Requiere instalar dos motores que
+corren en local. **Se instalan una vez.**
+
+### Whisper (transcripción)
+
+Con el entorno virtual activado:
+
+1. **PyTorch con CUDA.** Para tarjetas Blackwell (serie RTX 50xx) hace falta la
+   build de CUDA 12.8, no la estándar:
+   ```
+   pip install torch --index-url https://download.pytorch.org/whl/cu128
+   ```
+   Comprobar que la GPU se detecta, sin ningún aviso de incompatibilidad:
+   ```
+   python -c "import torch; print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0))"
+   ```
+2. **faster-whisper:**
+   ```
+   pip install faster-whisper
+   ```
+   La primera transcripción descarga el modelo `large-v3` (unos 3 GB); queda
+   cacheado para siempre.
+
+Dos ajustes importantes con los que se configura la transcripción:
+
+- **Filtro de voz (VAD) activado:** recorta los silencios antes de transcribir, lo
+  que evita que Whisper "alucine" frases inventadas en las pausas.
+- **Contexto de nombres:** se le pasa la lista de personas de la base de datos para
+  que acierte con los nombres propios. Esta lista se genera automáticamente desde
+  la base; no se mantiene a mano.
+
+### Ollama (análisis del texto)
+
+1. Instalar **Ollama** desde [ollama.com/download](https://ollama.com/download).
+   Corre en segundo plano.
+2. Descargar el modelo:
+   ```
+   ollama pull qwen3:14b
+   ```
+
+El texto transcrito se le pasa a este modelo, que propone qué apuntar y sobre quién.
+La fecha de hoy se le da desde el reloj del sistema en cada análisis, para que pueda
+interpretar expresiones como "ayer" o "el lunes".
+
+> **Principio clave:** ni Whisper ni el modelo escriben directamente en la base de
+> datos. Siempre generan un **borrador que tú confirmas** antes de guardar nada.
+> Es la red de seguridad frente a los errores de transcripción y de interpretación.
+
+---
+
+## Estructura del proyecto
 
 ```
-Relaciones
-  Ventana y ordenador:  http://127.0.0.1:9765
-  Desde el móvil:       http://192.168.1.42:9765
-  Llave para entrar desde la red: 3f9c1a8b
+Relaciones/
+├── main.py            Arranque: servidor + ventana de escritorio
+├── app.py             La aplicación: rutas, lógica, acceso a la base
+├── datos.db           Base de datos SQLite (NO se sube al repositorio)
+├── audios/            Audios grabados (NO se suben al repositorio)
+├── estatico/          CSS, JavaScript, tipografías, iconos
+├── plantillas/        Las vistas HTML
+├── requisitos.txt     Dependencias de Python
+└── venv/              Entorno virtual (NO se sube al repositorio)
 ```
 
-El puerto es siempre el 9765 y no cambia nunca: así la dirección que guardes en
-el móvil sigue valiendo mañana. Si está ocupado, la app te lo dice y no arranca,
-en vez de moverse a otro puerto a tus espaldas. Se eligió lejos de los puertos
-donde trabajas con otras cosas (8188, por ejemplo): la app no toca nada por
-debajo del 9765. La base de datos se crea sola la primera vez, con los círculos
-Amigos, Familia, Trabajo y Barrio.
+---
 
-## Entrar desde el móvil
+## Privacidad
 
-Con el ordenador encendido y `main.py` corriendo, en el móvil (misma wifi) abre
-la dirección `http://<la IP que sale en consola>:<puerto>`. Te pedirá la llave
-una vez y se queda guardada en una cookie de un año.
+Este proyecto guarda información sobre personas reales, así que la privacidad no es
+un extra, es el punto de partida:
 
-La llave no es un sistema de usuarios: no hay cuentas, ni registro, ni
-contraseñas. Es una llave para que un dispositivo cualquiera de tu wifi no entre
-sin más. Se genera aleatoria la primera vez, se guarda en `datos.db` y se imprime
-en cada arranque. La ventana del ordenador (127.0.0.1) entra siempre sin nada.
+- **La base de datos y los audios nunca se suben al repositorio.** Están excluidos
+  en `.gitignore`.
+- **Todo el procesamiento es local.** La transcripción y el análisis con IA ocurren
+  en tu ordenador; ningún audio ni texto se envía a servicios externos.
+- **El acceso remoto es una red privada** (Tailscale), no una web abierta a internet,
+  y está protegido por una llave.
+- Si compartes o publicas el proyecto, revisa que no haya datos personales en los
+  archivos de documentación (`README.md`, y los archivos de notas del proyecto).
 
-Si quieres cambiarla:
+---
 
-```bash
-python -c "import sqlite3,secrets; c=sqlite3.connect('datos.db'); c.execute('UPDATE ajuste SET valor=? WHERE clave=\"llave\"',(secrets.token_hex(4),)); c.commit()"
-```
+## Estado
 
-## Atajos
-
-- `N` en cualquier pantalla: apuntar algo.
-- `Ctrl + Enter` dentro del texto de una quedada: guardar.
-- Enter en los campos de una línea (añadir una persona, un dato, un círculo): guardar.
-- Botón **Noche** en Ajustes: alterna día y noche. Se recuerda en el aparato, no
-  en la base de datos, así que el móvil y la ventana pueden ir distintos.
-
-## La portada es la red
-
-`/` sirve el lienzo a pantalla completa que dibuja `estatico/grafo.js`: la red en
-3D, nítida, sin anillos y con la ficha flotante al señalar a alguien. Los
-círculos se exploran desde los cuadrados del panel. Arrastrar desplaza la vista
-dentro de un límite con el botón derecho o central; el izquierdo gira y la
-rueda controla el zoom.
-Se abre siempre ahí, aunque la base esté vacía.
-La app sólo pone el JSON, `GET /api/grafo`, con la forma que lee tu `grafo.js`:
-
-```json
-{
-  "generado": "2026-07-25T22:10:02",
-  "circulos": [{"id": 1, "nombre": "Amigos", "orden": 0}],
-  "personas": [{"id": 3, "nombre": "Marta Ruiz", "color": "#C2452D",
-                "circulo_id": 1, "circulo": "Amigos",
-                "notas": 12, "ultima_nota": "2026-07-22", "hablamos": "tres días",
-                "pendiente": ["Devolverle el libro"],
-                "preguntar": ["Se examina en octubre"],
-                "quedadas": [{"cuando": "22 jul", "canal": "en persona",
-                              "texto": "Café en la plaza…"}],
-                "relaciones": [{"id": 8, "nombre": "Javi Alonso",
-                                "etiqueta": "su pareja"}]}],
-  "aristas":  [{"a": "p3", "b": "p8", "tipo": "persona"}]
-}
-```
-
-Los ids de `aristas` van prefijados con `p`. Las aristas juntan dos cosas sin
-distinguirlas: las que has enlazado a mano y las que salen de haber apuntado a
-dos personas en la misma quedada. `pendiente` y `preguntar` son como mucho tres
-cada una, y `quedadas` dos, con el texto cortado: es lo que cabe en la ficha
-flotante. `hablamos` viene ya dicho en palabras. `notas` es cuántas veces has
-apuntado algo de esa persona, que es lo que da tamaño a su punto. Si alguien no
-tiene color, `color` viene vacío.
-
-## Copia de seguridad
-
-**Guardar una copia de todo**, en Ajustes, descarga un JSON con la base de datos
-entera. La llave de red no se exporta. También puedes copiar `datos.db` tal cual
-(si la app está abierta, copia además `datos.db-wal`).
-
-## Los archivos
-
-| Archivo | Qué es |
-| --- | --- |
-| `main.py` | Arranque: servidor en un hilo + ventana pywebview |
-| `app.py` | Todo el backend: base de datos y rutas |
-| `plantillas/` | HTML (Jinja2) |
-| `estatico/estilo.css` | Todo el CSS, hoja v4: documento técnico monocromo |
-| `estatico/app.js` | El JS de la app, todo opcional |
-| estatico/grafo.js | La red de la portada, nítida |
-| `estatico/tipos/` | Departure Mono, cargada con @font-face local |
-| `ejemplo.py` | 20 personas de mentira para ver la red (`--quitar` las saca) |
-| `datos.db` | Tus datos |
-| `temas-borrados-2026-07-25.json` | Los temas que había antes de quitarlos |
-| `para-code-2.md`, `contrato-marcado.md` | Encargos viejos, ya recogidos en `CLAUDE.md` |
-| `CLAUDE.md` | Modelo de datos y lo que no se debe construir |
+- **Funcionando:** fichas de personas, círculos, vista de red, acceso desde el
+  móvil, PWA instalable, grabación y subida de audios (con cola que reintenta si no
+  hay conexión).
+- **En construcción:** la conexión entre la grabación y el análisis —transcribir el
+  audio automáticamente y proponer el borrador de qué apuntar—. Las piezas (Whisper
+  y Ollama) están instaladas y probadas por separado; falta integrarlas en la
+  aplicación.
+- **Idea a futuro:** poder preguntarle a la aplicación por una persona y que
+  responda a partir de lo que tienes guardado.
