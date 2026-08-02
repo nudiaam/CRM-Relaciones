@@ -30,6 +30,13 @@ una buena idea, **no se hace: se dice**.
 | Dos columnas en *De un vistazo* | Etiqueta y valor quedaban en extremos opuestos |
 | Bandas negras en todos los paneles | Se prohibió… y luego se pidió justo para la ficha (ver excepción) |
 
+## El service worker no cachea, y no es un olvido
+
+`estatico/sw.js` existe **sólo** para que el navegador ofrezca instalar la app.
+Su manejador de `fetch` está vacío a propósito. **No añadir caché**: la app vive
+en la red del usuario, no hay latencia que compensar, y cachear sólo serviría
+para que el móvil enseñe versiones viejas justo después de tocar algo.
+
 ## Excepciones vigentes
 
 Dos cosas contradicen la letra de `CLAUDE.md` porque se pidieron

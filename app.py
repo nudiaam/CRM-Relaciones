@@ -18,7 +18,7 @@ from pathlib import Path
 from urllib.parse import quote, urlencode
 
 from fastapi import FastAPI, File, Form, Request, UploadFile
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -341,7 +341,9 @@ plantillas.env.filters["fecha"] = fecha_natural
 plantillas.env.filters["corta"] = fecha_corta
 plantillas.env.filters["cumple"] = cumple_natural
 
-LIBRES = ("/entrar", "/salud")
+# El navegador pide el manifest y el service worker antes de tener la cookie
+# de la llave, así que entran sin ella. No revelan nada: sólo nombre e iconos.
+LIBRES = ("/entrar", "/salud", "/manifest.json", "/sw.js")
 
 
 def es_local(request: Request):
@@ -369,6 +371,29 @@ async def puerta(request: Request, siguiente):
 @app.get("/salud")
 def salud():
     return Response("vale", media_type="text/plain")
+
+
+@app.get("/manifest.json")
+def manifest():
+    """Lo que hace que el móvil ofrezca añadirla a la pantalla de inicio."""
+    return FileResponse(
+        BASE / "estatico" / "manifest.json",
+        media_type="application/manifest+json",
+    )
+
+
+@app.get("/sw.js")
+def service_worker():
+    """Se sirve desde la raíz a propósito: un service worker sólo alcanza a su
+    propia carpeta y hacia abajo, así que desde /estatico/ no cubriría la app."""
+    return FileResponse(
+        BASE / "estatico" / "sw.js",
+        media_type="text/javascript",
+        headers={
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": "/",
+        },
+    )
 
 
 def vuelve(volver, por_defecto="/"):
@@ -1450,6 +1475,18 @@ def editar_nota(
                 "VALUES (?, ?)",
                 (nota_id, pid),
             )
+    con.close()
+    return vuelve(volver)
+
+
+@app.post("/nota/{nota_id}/borrar")
+def borrar_nota(nota_id: int, volver: str = Form("/")):
+    """Una quedada puede mencionar a varias personas, así que al borrarla
+    desaparece de todas sus fichas, no sólo de la que estabas mirando. Las
+    filas de `nota_persona` se van solas por ON DELETE CASCADE."""
+    con = conexion()
+    with con:
+        con.execute("DELETE FROM nota WHERE id = ?", (nota_id,))
     con.close()
     return vuelve(volver)
 

@@ -14,6 +14,20 @@ Corre en local, **nunca habla con internet**.
 - Nunca matar procesos filtrando por nombre o por línea de comandos (`main.py`
   coincide con servicios ajenos). Si hay que cerrar algo de esta app, localizarlo
   por el puerto concreto que escucha.
+- **La dirección buena desde el móvil es `https://vespa.tail43936f.ts.net`,
+  sin puerto.** Es la que tiene el icono instalado en la pantalla de inicio.
+  `tailscale serve` escucha en el 443 y hace de proxy hacia
+  `http://127.0.0.1:9765`. El nombre se compone del equipo en Tailscale
+  (`vespa`, que salió del nombre de Windows, `Vespa`) más el dominio del tailnet
+  (`tail43936f.ts.net`).
+- La IP fija dentro de Tailscale es `100.69.126.95` y `http://…:9765` también
+  responde, pero **no sirve para la app instalada**: sin HTTPS el navegador no
+  la considera contexto seguro, así que no hay service worker ni instalación.
+- **Ojo con la llave**: como el proxy de Tailscale conecta desde `127.0.0.1`,
+  la app ve esas peticiones como locales y **entran sin llave**. La llave sólo
+  protege el acceso directo por la IP de la wifi. Es aceptable porque el
+  `serve` es «tailnet only» —sólo tus propios dispositivos—, pero conviene
+  saberlo antes de activar Funnel, que lo abriría a internet.
 - SQLite con el módulo `sqlite3` de la estándar, archivo `datos.db` en esta
   carpeta. Sin ORM. El esquema se crea al arrancar si no existe, y las bases de
   versiones anteriores se ponen al día en `poner_al_dia()`, que es idempotente.
@@ -835,3 +849,95 @@ sólo al señalar un borrado.
   - Comprobado: aceptar envía, cancelar y Escape no envían nada, y el diálogo
     queda centrado y dentro de la pantalla también a 375px.
 - No se tocó la base ni el esquema. Los recursos van por `?v=20260731n`.
+
+### 2026-07-31 — Instalable en el móvil, y el logo en la ventana
+
+- La app se puede **añadir a la pantalla de inicio** y abrirse a pantalla
+  completa, sin la barra del navegador. Hace falta HTTPS, que ya lo da Tailscale.
+- **Iconos** generados desde `img/Logo-Negro_SF.png` a `estatico/icono/`:
+  192 y 512 para la instalación, un 512 **recortable** con margen del 20%
+  porque Android recorta el icono a la forma del sistema y sin ese aire se
+  comía las puntas de la onda, 180 para iOS, 32 y 16 de favicon, y dos `.ico`
+  para la ventana de escritorio (claro y oscuro). Todos cuadrados, monocromos y
+  sin esquinas redondeadas.
+- **`manifest.json`** en la raíz: `display: standalone`, fondo papel `#f4efe1`,
+  tema tinta `#14120f`. **Sin `orientation`**, a propósito: la red se ve mejor
+  pudiendo girar.
+- **Service worker mínimo en `/sw.js`, que no cachea nada.** Existe sólo porque
+  sin uno registrado el navegador no ofrece instalar. Su manejador de `fetch`
+  está vacío y no llama a `respondWith`, así que todo sigue viniendo del
+  servidor. **No añadir caché**: la app vive en tu red, no hay latencia que
+  compensar, y lo único que se ganaría es que el móvil enseñe versiones viejas.
+  Comprobado tras cargar: cero almacenes de caché.
+- Se sirve **desde la raíz**, no desde `/estatico/`: un service worker sólo
+  alcanza su carpeta y hacia abajo. `manifest.json` y `/sw.js` entran sin llave,
+  porque el navegador los pide antes de tener la cookie.
+- **Zonas seguras.** El viewport lleva `viewport-fit=cover`, que es lo que
+  enciende `env(safe-area-inset-*)`. La barra, la red, sus mandos, el pie de
+  Apuntar y la ficha de la red respetan el notch y la barra de gestos. En el
+  navegador normal esas variables valen cero, así que la geometría no cambió:
+  barra a 56px, red a 56, mandos a 80/24, igual que antes.
+- **La ventana de escritorio lleva el mismo icono**, vía `webview.start(icon=…)`.
+  La documentación de pywebview dice que eso es sólo de GTK/QT, pero está
+  desactualizada: `platforms/winforms.py` lo aplica en Windows.
+- Comprobado servido: `application/manifest+json` para el manifest y
+  `text/javascript` con `Service-Worker-Allowed: /` para el service worker.
+- No se tocó la base ni el esquema. Los recursos van por `?v=20260731p`.
+
+### 2026-07-31 — El logo en la barra, y la franja blanca del móvil
+
+- **El cuadrado de tinta de la barra pasa a ser el logo.** Van las dos
+  versiones en el marcado, `marca-negro.png` y `marca-blanco.png`, con fondo
+  transparente y recortadas al trazo; el CSS enseña la que toca según el modo.
+  Sin JavaScript y sin filtros, que sobre un trazo tramado ensucian. Se retiró
+  `.marca-pixel` y su regla nocturna.
+- **El icono de la ventana de escritorio ahora es el blanco sobre
+  transparente**, que su barra de título es oscura. Antes llevaba un cuadrado
+  de papel detrás y se veía como un recuadro. Queda `relaciones-oscuro.ico`
+  por si algún día la barra de título fuera clara.
+- **La franja blanca al pie del móvil** era que `<html>` no tenía fondo: con la
+  app instalada, la zona de la barra de gestos queda por debajo de `<body>` y
+  enseñaba el blanco del navegador. El fondo va ahora también en `html`, así
+  que sigue al modo.
+- **Ajustes**: se fue el filete de `.pagina-cabecera`, que duplicaba la línea
+  bajo la entradilla porque el borde del primer panel ya hace de raya; y se
+  fueron los filetes que separaban los círculos, que ya se distinguen por su
+  propia caja.
+- No se tocó la base ni el esquema. Los recursos van por `?v=20260731q`.
+
+### 2026-07-31 — Márgenes del móvil y las barras del sistema
+
+- **La hoja se había quedado sin márgenes laterales en móvil**, y era culpa de
+  la tanda anterior: la regla de zona segura ponía `padding-left/right` con
+  `env(...)`, que en vertical vale cero, y al ir después pisaba el relleno de
+  los `@media`. Ahora la zona segura **se suma** al relleno en vez de
+  sustituirlo: 48px en escritorio, 24 y 20 según se estrecha.
+- **`theme-color` pasa a seguir al modo de la app, no al del teléfono.** Había
+  dos metaetiquetas por `prefers-color-scheme`, así que un móvil en claro con
+  la app en noche teñía las barras del sistema al revés. Ahora hay una sola y
+  `app.js` la actualiza al arrancar y al pulsar el botón de modo. En Android es
+  lo único que tiñe la barra de gestos, que es de donde salía la franja clara
+  al pie de la app instalada.
+- El logo de la barra baja de 28 a 22px y se acerca al borde: la marca pasa de
+  24 a 16px de relleno por la izquierda.
+- Los recursos van por `?v=20260731r`.
+
+### 2026-08-01 — Se pueden borrar quedadas
+
+- **Faltaba poder eliminar una quedada.** No era que el botón estuviera
+  escondido: no existía ni la ruta. Se podía crear y editar, pero no borrar.
+- Ruta nueva `POST /nota/{id}/borrar`. Las filas de `nota_persona` se van solas
+  por el `ON DELETE CASCADE` que ya tenía el esquema, así que **no hizo falta
+  tocarlo**.
+- El botón vive en el bloque *Quedadas* de la ficha, junto a *Editar*, y sólo
+  aparece en modo edición como todo lo que escribe datos.
+- **El aviso nombra a quien corresponda.** Una quedada puede mencionar a varias
+  personas, así que al borrarla desaparece de todas sus fichas: la confirmación
+  dice «…y desaparece también de la ficha de Fulano» cuando hay más gente, y se
+  queda en la frase corta cuando la quedada es sólo tuya con esa persona.
+- Probado **sobre una copia de `datos.db`**: quedada con dos personas → una nota
+  menos, sus dos enlaces fuera, las personas intactas, y borrar una inexistente
+  no rompe nada. La base real quedó igual.
+- La línea superior de la barra en móvil sube a 2px, que a 1px se veía más
+  delgada que el filete de abajo.
+- Los recursos van por `?v=20260801a`.

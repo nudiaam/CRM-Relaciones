@@ -194,14 +194,20 @@
       {% set volver_quedada = "/persona/" ~ p.id ~ "?pagina=" ~ pagina ~ "#quedadas" %}
       <div class="quedadas">
         {% for n in notas %}
+        {% set acompanan = quienes.get(n.id, []) | rejectattr('id', 'equalto', p.id) | list %}
         <article class="quedada">
-          <p class="quedada-cuando">
+          <div class="quedada-cuando">
             <span>{{ n.fecha|corta }}</span>
             {% if n.canal %}<span>{{ n.canal }}</span>{% endif %}
-            <a class="editar-enlace" href="/nota/{{ n.id }}?volver={{ volver_quedada|urlencode }}" data-solo-edicion>Editar</a>
-          </p>
+            <span class="quedada-acciones" data-solo-edicion>
+              <a class="editar-enlace" href="/nota/{{ n.id }}?volver={{ volver_quedada|urlencode }}">Editar</a>
+              <form method="post" action="/nota/{{ n.id }}/borrar" data-confirmar="{% if acompanan %}Se elimina esta quedada, y desaparece también de la ficha de {{ acompanan|map(attribute='nombre')|join(', ') }}. ¿Seguro?{% else %}Se elimina esta quedada. ¿Seguro?{% endif %}">
+                <input type="hidden" name="volver" value="{{ volver_quedada }}">
+                <button class="discreto accion-eliminar" type="submit">Eliminar</button>
+              </form>
+            </span>
+          </div>
           <p class="escrito">{{ n.texto }}</p>
-          {% set acompanan = quienes.get(n.id, []) | rejectattr('id', 'equalto', p.id) | list %}
           {% if acompanan %}
           <div class="chips">{% for q in acompanan %}<a class="chip" href="/persona/{{ q.id }}">{{ q.nombre }}</a>{% endfor %}</div>
           {% endif %}

@@ -110,7 +110,12 @@ def main():
     webview.create_window(
         "Relaciones", f"http://127.0.0.1:{puerto}", width=1100, height=850
     )
-    webview.start()
+    # El mismo icono que la app instalada en el móvil. La documentación de
+    # pywebview dice que `icon` es sólo de GTK/QT, pero está desactualizada:
+    # platforms/winforms.py lo aplica en Windows. `backend.BASE` sirve tanto
+    # desde el código como desde el ejecutable empaquetado.
+    icono = backend.BASE / "estatico" / "icono" / "relaciones.ico"
+    webview.start(icon=str(icono) if icono.exists() else None)
 
 
 if __name__ == "__main__":

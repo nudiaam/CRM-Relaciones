@@ -97,6 +97,9 @@ html {
   min-height: 100%;
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
+  /* Instalada en el móvil, la franja de la barra de gestos queda por debajo
+     de <body> y enseñaba el blanco del navegador. El fondo va también aquí. */
+  background: var(--papel);
 }
 
 body {
@@ -190,13 +193,48 @@ p {
   letter-spacing: .12em;
 }
 
-.marca-pixel {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  color: var(--papel);
-  background: var(--tinta);
+/* El logo sustituye al cuadrado de tinta que había antes. Van los dos en el
+   marcado y el modo decide cuál se ve; así no hace falta JavaScript ni un
+   filtro que ensucie el trazo tramado. */
+.marca-logo {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+/* Menos aire por la izquierda: el logo se acerca al borde. */
+.barra > .marca {
+  padding-left: calc(16px + env(safe-area-inset-left));
+}
+
+/* En móvil, un filete cierra la navegación por arriba. Va en un pseudo, no en
+   un `border-top`, para que caiga justo debajo de la zona segura: con la app
+   instalada, un borde normal quedaría detrás de la barra de estado.
+   `round()` lo cuadra a píxel entero: `env(safe-area-inset-top)` suele traer
+   decimales, la línea aterrizaba a media fila y el móvil la difuminaba, así
+   que se veía más fina que el filete de abajo. La primera declaración queda de
+   respaldo para navegadores sin `round()`. */
+@media (max-width: 640px) {
+  .barra::before {
+    content: "";
+    position: absolute;
+    top: env(safe-area-inset-top);
+    top: round(down, env(safe-area-inset-top), 1px);
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--filete-color);
+  }
+}
+
+.marca-logo-noche,
+html[data-modo="noche"] .marca-logo-dia {
+  display: none;
+}
+
+html[data-modo="noche"] .marca-logo-noche {
+  display: block;
 }
 
 .barra nav {
@@ -3574,7 +3612,6 @@ html[data-modo="noche"] .grafo-mandos > .ventana-titulo {
 }
 
 html[data-modo="noche"] ::selection,
-html[data-modo="noche"] .marca-pixel,
 html[data-modo="noche"] .barra nav a[aria-current="page"],
 html[data-modo="noche"] .boton-solido,
 html[data-modo="noche"] .anadir-destacado > summary,
@@ -4019,8 +4056,18 @@ html[data-modo="noche"] .accion-eliminar:hover {
   text-transform: uppercase;
 }
 
-.quedada-cuando .editar-enlace {
+.quedada-acciones {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-left: auto;
+}
+
+.quedada-acciones form {
+  margin: 0;
+}
+
+.quedada-cuando .editar-enlace {
   text-decoration: underline;
 }
 
@@ -4114,9 +4161,19 @@ html[data-modo="noche"] .accion-eliminar:hover {
   margin-top: 24px;
 }
 
+/* Sin filete propio: el borde del primer panel ya hace de línea, y con los dos
+   se veían dos rayas seguidas bajo la entradilla. */
 .pagina-ajustes .pagina-cabecera {
   min-height: auto;
   padding-bottom: 20px;
+  border-bottom: 0;
+}
+
+/* Los círculos se separan por su propia caja, no hace falta filete entre ellos. */
+.pagina-ajustes .circulos-lista,
+.pagina-ajustes .circulos-lista > li {
+  border-top: 0;
+  border-bottom: 0;
 }
 
 .pagina-ajustes .entradilla {
@@ -4143,6 +4200,76 @@ html[data-modo="noche"] .accion-eliminar:hover {
 
 .pagina-ajustes .anadir > summary {
   min-height: 44px;
+}
+
+/* 2026-07-31 · Instalada en la pantalla de inicio, la app ocupa el alto entero
+   y aparecen el notch arriba y la barra de gestos abajo. Estas variables valen
+   cero en el navegador normal, así que la misma regla sirve para los dos.
+   Necesita `viewport-fit=cover` en el viewport, que está en base.html. */
+
+.barra {
+  padding-top: env(safe-area-inset-top);
+  height: calc(var(--barra) + env(safe-area-inset-top));
+}
+
+/* La zona segura se SUMA al relleno que ya tiene la hoja; no lo sustituye.
+   Antes esta regla ganaba a las de móvil y dejaba el texto pegado al borde. */
+.hoja {
+  padding-left: calc(48px + env(safe-area-inset-left));
+  padding-right: calc(48px + env(safe-area-inset-right));
+  padding-bottom: calc(128px + env(safe-area-inset-bottom));
+}
+
+@media (max-width: 880px) {
+  .hoja {
+    padding-left: calc(24px + env(safe-area-inset-left));
+    padding-right: calc(24px + env(safe-area-inset-right));
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 640px) {
+  .hoja {
+    padding-left: calc(20px + env(safe-area-inset-left));
+    padding-right: calc(20px + env(safe-area-inset-right));
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  }
+}
+
+/* La red ocupa lo que queda bajo la barra. */
+.grafo {
+  inset: calc(var(--barra) + env(safe-area-inset-top)) 0 0;
+}
+
+.grafo-estado {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.grafo-mandos {
+  top: calc(var(--barra) + env(safe-area-inset-top) + 24px);
+  left: calc(24px + env(safe-area-inset-left));
+}
+
+.grafo-ayuda {
+  left: calc(24px + env(safe-area-inset-left));
+  bottom: calc(56px + env(safe-area-inset-bottom));
+}
+
+/* El pie de Apuntar se queda pegado abajo: sin esto, la barra de gestos de
+   Android se come los botones. */
+.nota-acciones {
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+
+.zona-peligrosa {
+  margin-bottom: env(safe-area-inset-bottom);
+}
+
+@media (max-width: 640px) {
+  .grafo-ficha {
+    top: calc(var(--barra) + env(safe-area-inset-top));
+    max-height: calc(100vh - var(--barra) - env(safe-area-inset-top) - 32px);
+  }
 }
 
 /* 2026-07-31 · El aviso antes de borrar, con la cara de la app.

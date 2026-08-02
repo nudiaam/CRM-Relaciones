@@ -37,6 +37,29 @@
   try { guardado = localStorage.getItem('modo'); } catch (e) { /* sin localStorage */ }
   if (guardado === 'noche' || guardado === 'dia') raiz.dataset.modo = guardado;
 
+  // Las barras del sistema en Android se tiñen con `theme-color`, y es lo único
+  // que las controla cuando la app está instalada. Tiene que seguir al modo
+  // elegido aquí, no al del teléfono.
+  function tenirBarrasDelSistema() {
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (!meta) return;
+    meta.setAttribute(
+      'content', raiz.dataset.modo === 'noche' ? '#23241f' : '#f4efe1'
+    );
+  }
+  tenirBarrasDelSistema();
+
+  // Registrar el service worker es lo único que falta para que el navegador
+  // ofrezca instalar la app. No cachea nada: ver estatico/sw.js.
+  if ('serviceWorker' in navigator) {
+    addEventListener('load', function () {
+      navigator.serviceWorker.register('/sw.js').catch(function () {
+        // Sin contexto seguro (http a secas) el navegador lo rechaza. La app
+        // funciona igual; sólo no se puede instalar.
+      });
+    });
+  }
+
   // En una pantalla táctil, llevar el foco a un campo abre el teclado y tapa
   // media pantalla. Sólo se enfoca solo cuando hay ratón.
   function enfocar(campo) {
@@ -58,6 +81,7 @@
         raiz.dataset.modo = raiz.dataset.modo === 'noche' ? 'dia' : 'noche';
         try { localStorage.setItem('modo', raiz.dataset.modo); } catch (e) { /* nada */ }
         pinta(boton);
+        tenirBarrasDelSistema();
       });
     }
 

@@ -44,7 +44,13 @@ Busca el ancla con `grep`; el número es orientativo.
 ## Rutas, todas
 
 **GET**: `/` · `/personas` · `/persona/{id}` · `/persona/{id}/foto` · `/nota` ·
-`/nota/{id}` · `/ajustes` · `/entrar` · `/salud` · `/api/grafo`
+`/nota/{id}` · `/ajustes` · `/entrar` · `/salud` · `/api/grafo` ·
+`/manifest.json` · `/sw.js`
+
+`/manifest.json` y `/sw.js` van **en la raíz y sin llave**: el navegador los
+pide antes de tener la cookie, y un service worker sólo alcanza su carpeta y
+hacia abajo, así que desde `/estatico/` no cubriría la app. Los archivos viven
+en `estatico/`, pero se sirven desde la raíz con su tipo MIME propio.
 
 **POST**: `/entrar` · `/persona` · `/persona/{id}` · `/persona/{id}/foto` ·
 `/persona/{id}/borrar` · `/persona/{id}/hecho` · `/persona/{id}/hilo` ·
@@ -52,6 +58,7 @@ Busca el ancla con `grep`; el número es orientativo.
 `/hecho/{id}/borrar` ·
 `/hilo/{id}/cerrar` · `/hilo/{id}/reabrir` · `/hilo/{id}/borrar` ·
 `/relacion/editar` · `/relacion/borrar` · `/nota` · `/nota/{id}` ·
+`/nota/{id}/borrar` ·
 `/circulo` · `/circulo/{id}` · `/circulo/{id}/mover` · `/circulo/{id}/borrar`
 
 Todas las POST terminan en redirección 303. La única que devuelve JSON es

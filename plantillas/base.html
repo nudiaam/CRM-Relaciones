@@ -2,16 +2,34 @@
 <html lang="es" data-modo="dia">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {# viewport-fit=cover es lo que enciende las variables de zona segura; sin
+     él, en pantalla completa el notch y la barra de gestos tapan contenido. #}
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{% block titulo %}Relaciones{% endblock %}</title>
-  <link rel="stylesheet" href="/estatico/estilo.css?v=20260731n">
-  <script src="/estatico/app.js?v=20260731n"></script>
+
+  <link rel="manifest" href="/manifest.json">
+  {# Un solo theme-color, que app.js mantiene igual al modo elegido en la app.
+     Con dos por `prefers-color-scheme` mandaba el modo del sistema, así que un
+     móvil en claro con la app en noche teñía las barras al revés. #}
+  <meta name="theme-color" content="#f4efe1">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Relaciones">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="icon" href="/estatico/icono/icono-32.png" sizes="32x32">
+  <link rel="icon" href="/estatico/icono/icono-192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="/estatico/icono/icono-180.png">
+
+  <link rel="stylesheet" href="/estatico/estilo.css?v=20260801a">
+  <script src="/estatico/app.js?v=20260801a"></script>
 </head>
 <body class="{% block clase_body %}{% endblock %}">
   <a class="saltar" href="#contenido">Saltar al contenido</a>
   <header class="barra">
     <a class="marca" href="/" aria-label="Relaciones, abrir la red">
-      <span class="marca-pixel" aria-hidden="true">◆</span>
+      {# Dos versiones del logo; el CSS enseña la que toca según el modo. #}
+      <img class="marca-logo marca-logo-dia" src="/estatico/icono/marca-negro.png" alt="" aria-hidden="true">
+      <img class="marca-logo marca-logo-noche" src="/estatico/icono/marca-blanco.png" alt="" aria-hidden="true">
       <span>RELACIONES</span>
     </a>
     <nav aria-label="Principal">
