@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block titulo %}Audios · Relaciones{% endblock %}
+{% block clase_body %}pagina-audios{% endblock %}
+
+{% block contenido %}
+<header class="pagina-cabecera pagina-cabecera-simple">
+  <div>
+    <p class="sobrelinea">APUNTAR POR VOZ</p>
+    <h1 class="titulo">Audios</h1>
+    <p class="entradilla">Lo que has grabado con el botón de voz. Aún no se hace nada con ellos: sólo se guardan.</p>
+  </div>
+</header>
+
+<section class="panel">
+  <div class="panel-cabecera">
+    <h2>Grabaciones</h2>
+    <span>{{ audios|length }}</span>
+  </div>
+  {% if audios %}
+  <ul class="audios-lista">
+    {% for a in audios %}
+    <li class="audio-fila">
+      <div class="audio-datos">
+        <p class="audio-fecha">{{ a.grabado|hace|capitalize }} · {{ a.grabado[11:16] }}</p>
+        <p class="audio-estado">{% if a.estado == 'pendiente' %}Pendiente{% else %}{{ a.estado }}{% endif %}</p>
+      </div>
+      <button class="audio-oir discreto" type="button"
+              data-oir="/audio/{{ a.id }}">Escuchar</button>
+      <form method="post" action="/audio/{{ a.id }}/borrar"
+            data-confirmar="Se borra este audio del {{ a.grabado|hace }} y ya no podrás volver a escucharlo. ¿Seguro?">
+        <input type="hidden" name="volver" value="/audios">
+        <button class="discreto accion-eliminar" type="submit">Eliminar</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="vacio">Todavía no has grabado nada. Usa el botón de voz desde cualquier pantalla.</p>
+  {% endif %}
+</section>
+{% endblock %}

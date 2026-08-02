@@ -107,3 +107,14 @@ se retoma, hay que colorear **también esos dos hijos**, no sólo el contenedor.
 - `.grafo-mandos button` alcanza también la barra de título de *Explorar la
   red*, porque es un `<button>`. Cualquier regla para esa barra necesita más
   especificidad.
+- Bloque **captura por voz** al final del CSS. El botón flotante `.voz` va
+  `position: fixed` abajo a la derecha, respetando la zona segura. Los cuadrados
+  «rec» (`.voz-icono`, `.voz-punto`) se pintan con `background: currentColor`,
+  no con `var(--tinta)` crudo, para no disparar la norma de los dos modos que
+  comprueba `comprobar.py`. En `body.portada` el botón sube por encima de
+  `.grafo-estado` para no solaparla.
+- La **ficha flotante de la red** (`.grafo-ficha`) es una ventana con barra de
+  título (`.grafo-ficha-titulo`, reutiliza `.ventana-titulo`) que dice «Ficha
+  resumida» y lleva la × dentro. En móvil flota con márgenes de 16px a los lados
+  y arriba, no de borde a borde; la altura se acota para no tapar la barra de
+  estado. La barra de título es `sticky` mientras el contenido se desplaza.

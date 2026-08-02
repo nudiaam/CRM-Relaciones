@@ -941,3 +941,87 @@ sólo al señalar un borrado.
 - La línea superior de la barra en móvil sube a 2px, que a 1px se veía más
   delgada que el filete de abajo.
 - Los recursos van por `?v=20260801a`.
+
+### 2026-08-02 — Captura por voz, paso 1: grabar, subir y guardar
+
+Primer paso deliberadamente mínimo de la captura por audio: **sólo** grabar en
+el móvil, subir el audio y guardarlo. **Nada de transcripción ni de IA**; se
+comprueba que el audio viaja del móvil al ordenador y se guarda entero antes de
+construir nada encima.
+
+- **Tabla nueva `audio(id, archivo, grabado, estado)`**, en `ESQUEMA`, creada al
+  arrancar también en bases existentes (`CREATE TABLE IF NOT EXISTS`, sin
+  migración en `poner_al_dia`). `estado` es siempre `pendiente` de momento.
+  **Fuera de `TABLAS_EXPORTABLES`**: la copia de todo zipea la base, no los
+  archivos, y una lista apuntando a nada no sirve. Se decidirá al tratar la
+  copia con audios.
+- **Carpeta `audios/` junto a `datos.db`** (`CARPETA_AUDIOS`, con `BASE_DATOS`
+  para que quede al lado del `.exe`). Los audios son archivos sueltos ahí,
+  nunca dentro de la base. **En el `.gitignore`** con la base: contienen voz.
+- **Formato: Opus donde se pueda.** El móvil elige contenedor con
+  `MediaRecorder.isTypeSupported` (webm/ogg Opus en Android; mp4/AAC en iPhone,
+  que no sabe grabar webm). El servidor **no transcodifica**: guarda el blob tal
+  cual y le pone la extensión según `EXT_POR_MIME`. Cero dependencias nuevas,
+  nada sale a internet.
+- **Botón de grabar flotante en toda la app** (`base.html`, `[data-voz]`), a un
+  toque desde cualquier pantalla para grabar antes de que se olvide. Plegado es
+  un botón; desplegado enseña grabar/parar, cronómetro y el estado. **Sólo
+  móvil**: `voz.js` sólo lo revela con puntero grueso y micrófono; en la ventana
+  de escritorio no aparece. Grabar no se hace desde escritorio a propósito.
+- **Cola local con reintento (`voz.js`, IndexedDB).** Al parar, el audio se
+  guarda en el móvil **antes** de intentar subir, así no se pierde con el
+  ordenador apagado —el requisito central—. Reintenta al abrir la app, al
+  evento `online` y con un botón *Reintentar*; contador de «sin subir». Sólo
+  borra de la cola lo que el servidor confirma. **No toca el service worker** ni
+  cachea nada.
+- **`POST /audio`** recibe el blob (fetch, no formulario) y responde JSON:
+  segunda excepción a «POST + 303», junto al `/api/grafo`. **`GET /audios`** es
+  la lista, **dentro de Apuntar** (enlace en la cabecera de `/nota`): fecha en
+  lenguaje natural, estado y **Eliminar manual** con confirmación. **Ninguno se
+  borra solo.** **`GET /audio/{id}`** sirve el original para volver a
+  escucharlo; el reproductor es propio, sin `<audio controls>` nativo.
+- El mapa (`backend.md`, `pantallas.md`, `interaccion.md`, `estilos.md`,
+  `decisiones.md`) se actualizó en el mismo cambio; `python mapa/comprobar.py`
+  pasa. No se modificó ningún dato existente; el único cambio de esquema es la
+  tabla nueva, avisado y aprobado de antemano.
+- En la portada, `.grafo-estado` (barra de estado fija de 32px al pie) solapaba
+  el botón flotante. Se sube el botón por encima **sólo en `body.portada`**
+  (`bottom: calc(48px + zona segura)`); en el resto de pantallas, donde no hay
+  nada fijo abajo a la derecha, se queda en su sitio.
+- Pendiente de tu visto bueno al aspecto del botón antes de darlo por bueno.
+- Los recursos van por `?v=20260802b`.
+
+### 2026-08-02 — La ficha de la red, como ventana flotante
+
+- La ficha comprimida de la portada (`.grafo-ficha`) deja de ir de borde a
+  borde en móvil y pasa a ser una **ventana flotante** con el mismo lenguaje que
+  *Explorar la red*: barra de título rellena (`.grafo-ficha-titulo`, reutiliza
+  `.ventana-titulo`) que dice **«Ficha resumida»**, con la × dentro de la barra
+  en vez de flotando sobre el contenido.
+- En móvil flota con **márgenes de 16px a los lados y arriba** (respetando la
+  zona segura), y su altura se acota para **no tapar la barra de estado** del
+  pie. En escritorio ya era una caja flotante arriba a la derecha; ahora también
+  estrena la barra de título. La barra es `sticky` al desplazar el contenido.
+- Se retiró el `padding-right: 40px` que reservaba hueco para la × flotante, en
+  las dos reglas (escritorio y móvil): ya no hace falta.
+- Las dos reglas móviles de `.grafo-ficha` (una anulaba a la otra desde una
+  tanda vieja) quedan coherentes con la misma geometría flotante.
+- **Nota de proceso:** la ruta `/audios` es código nuevo de `app.py`; las
+  plantillas y los estáticos se recargan en cada petición, pero las rutas nuevas
+  sólo entran al **reiniciar el proceso**. Hasta reiniciar la ventana del 9765,
+  el enlace a los audios daba 404. No es un fallo del código.
+- Los recursos van por `?v=20260802c`.
+
+### 2026-08-02 — Ficha de la red: sin scroll lateral y la × alineada
+
+- **Se va la barra de scroll horizontal.** La causa: `.grafo-ficha` tiene
+  `overflow-y: auto` y `overflow-x` quedaba en `visible`, que por la regla de
+  CSS lo asciende a `auto`; entonces la barra vertical, al estrechar el
+  contenido, provocaba un desbordamiento de 1px y sacaba barra horizontal. Se
+  fija `overflow-x: hidden`.
+- **La × se despega del borde.** Pasa a insertarse 8px como el rótulo de la
+  izquierda de su barra de título (`margin: -8px 0` en vez de `-8px -8px`), así
+  queda simétrica con «Ficha resumida» y alineada con la barra, no pegada.
+- Se retiró el `padding-right: 48px` que reservaba hueco para la × cuando
+  flotaba sobre el nombre; la identidad vuelve a 16px a ambos lados.
+- Los recursos van por `?v=20260802d`.

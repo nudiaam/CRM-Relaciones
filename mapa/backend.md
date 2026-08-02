@@ -44,8 +44,8 @@ Busca el ancla con `grep`; el número es orientativo.
 ## Rutas, todas
 
 **GET**: `/` · `/personas` · `/persona/{id}` · `/persona/{id}/foto` · `/nota` ·
-`/nota/{id}` · `/ajustes` · `/entrar` · `/salud` · `/api/grafo` ·
-`/manifest.json` · `/sw.js`
+`/nota/{id}` · `/audios` · `/audio/{id}` · `/ajustes` · `/entrar` · `/salud` ·
+`/api/grafo` · `/manifest.json` · `/sw.js`
 
 `/manifest.json` y `/sw.js` van **en la raíz y sin llave**: el navegador los
 pide antes de tener la cookie, y un service worker sólo alcanza su carpeta y
@@ -58,11 +58,27 @@ en `estatico/`, pero se sirven desde la raíz con su tipo MIME propio.
 `/hecho/{id}/borrar` ·
 `/hilo/{id}/cerrar` · `/hilo/{id}/reabrir` · `/hilo/{id}/borrar` ·
 `/relacion/editar` · `/relacion/borrar` · `/nota` · `/nota/{id}` ·
-`/nota/{id}/borrar` ·
+`/nota/{id}/borrar` · `/audio` · `/audio/{id}/borrar` ·
 `/circulo` · `/circulo/{id}` · `/circulo/{id}/mover` · `/circulo/{id}/borrar`
 
-Todas las POST terminan en redirección 303. La única que devuelve JSON es
-`GET /api/grafo`.
+Casi todas las POST terminan en redirección 303. Devuelven JSON `GET /api/grafo`
+y `POST /audio`: esta última la llama un fetch desde el móvil, no un formulario.
+
+## Captura por voz
+
+Busca `# captura por voz` en `app.py` (entre las quedadas y la red).
+
+- `audio(id, archivo, grabado, estado)`: una fila por audio. El archivo suelto
+  vive en `CARPETA_AUDIOS` (`audios/`, junto a `datos.db`), nunca en la base.
+  El estado es siempre `pendiente` de momento. Fuera de `TABLAS_EXPORTABLES`.
+- `POST /audio`: recibe el blob del móvil y lo guarda. `EXT_POR_MIME` decide la
+  extensión según el contenedor que llegue (Opus en webm/ogg, o mp4/AAC en
+  iPhone); el servidor no transcodifica. Responde JSON.
+- `GET /audios`: la lista, enlazada desde Apuntar. `GET /audio/{id}` sirve el
+  archivo para volver a escucharlo. `POST /audio/{id}/borrar` es manual: quita
+  la fila y el archivo del disco. Nada se borra solo.
+- La cola offline vive en el móvil (IndexedDB, en `estatico/voz.js`): el
+  servidor sólo recibe subidas.
 
 ## Anclas de redirección
 

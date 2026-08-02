@@ -70,6 +70,14 @@ apuntando a `/persona/{id}/relaciones`. Los dos comparten estilos y el bloque
 Recorrido lineal de tres pasos: qué ocurrió · cuándo y por dónde · con quién.
 El paso 02 usa el **control de fecha propio**; el nativo queda en un `<noscript>`.
 
+## `/audios` (dentro de Apuntar)
+
+`audios.html`. La lista de audios grabados por voz: fecha en lenguaje natural,
+estado (siempre *Pendiente* de momento), un botón *Escuchar* propio (sin control
+nativo, lo mueve `voz.js`) y *Eliminar* manual con confirmación. Se llega desde
+el enlace *Apuntar por voz* de la cabecera de `/nota`. El botón flotante de
+grabar no vive aquí: está en `base.html` y sale en todas las pantallas.
+
 ## Palabras prohibidas en pantalla
 
 `hilo` `hecho` `nota` `entorno` `tema` y cualquier término de base de datos.

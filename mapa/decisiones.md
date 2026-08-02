@@ -58,3 +58,7 @@ explícitamente. **Están acotadas y no se extienden:**
   **y** actualizar el mapa que corresponda.
 - Subir el `?v=` de los recursos estáticos o el móvil usará la caché vieja.
 - Nunca matar procesos por nombre; localizar por el puerto 9765.
+- Los audios son archivos sueltos en `audios/`, nunca dentro de la base, y
+  fuera de git y de la copia de todo: contienen voz. Ninguno se borra solo.
+- El audio se guarda tal cual llega del móvil (Opus donde se pueda), sin
+  transcodificar: cero dependencias nuevas y nada sale a internet.

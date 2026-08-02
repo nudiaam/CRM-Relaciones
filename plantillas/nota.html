@@ -8,6 +8,7 @@
     <p class="sobrelinea">{% if editando %}CAMBIAR QUEDADA{% else %}NUEVA QUEDADA{% endif %}</p>
     <h1 class="titulo">{% if editando %}Editar quedada{% else %}Apuntar algo{% endif %}</h1>
     <p class="entradilla">{% if editando %}Corrige lo que pasó, la fecha, el canal o quién estuvo.{% else %}Primero escribe lo que quieres recordar. El resto puede esperar.{% endif %}</p>
+    {% if not editando %}<p class="entradilla-enlace"><a href="/audios">Apuntar por voz →</a></p>{% endif %}
   </div>
 </header>
 

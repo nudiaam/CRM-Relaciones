@@ -1887,6 +1887,9 @@ details > summary::-webkit-details-marker {
   width: min(384px, calc(100vw - 48px));
   max-height: calc(100vh - var(--barra) - 80px);
   overflow-y: auto;
+  /* Sin esto, `overflow-y: auto` deja el eje X en `auto` y la barra vertical,
+     al estrechar el contenido, saca una barra horizontal por 1px. */
+  overflow-x: hidden;
   overscroll-behavior: contain;
   background: var(--papel);
   border: var(--filete);
@@ -1902,17 +1905,27 @@ details > summary::-webkit-details-marker {
   pointer-events: none;
 }
 
-.grafo-cerrar {
+/* La barra de título se queda arriba al desplazar el contenido de la ficha. */
+.grafo-ficha-titulo {
   position: sticky;
   top: 0;
   z-index: 2;
-  float: right;
-  width: 40px;
-  min-height: 40px;
-  margin: 0;
+}
+
+/* La × vive dentro de la barra de título, no flotando sobre el contenido. Los
+   márgenes negativos la llevan hasta la esquina para agrandar la zona de toque. */
+/* La × se inseta como el rótulo de la izquierda (8px de la barra de título),
+   simétrica y sin pegarse al borde. Los -8px arriba y abajo mantienen la barra
+   a 32px sin perder zona de toque. */
+.grafo-cerrar {
+  width: 32px;
+  min-height: 32px;
+  margin: -8px 0;
   padding: 0;
-  border-top: 0;
-  border-right: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  font-size: 18px;
 }
 
 #ficha-contenido {
@@ -1926,7 +1939,7 @@ details > summary::-webkit-details-marker {
 }
 
 .grafo-ficha .titulo {
-  padding-right: 40px;
+  padding-right: 0;
 }
 
 .grafo-ficha .ficha-mini-dato {
@@ -2178,15 +2191,13 @@ body > .hoja:only-child {
   }
 
   .grafo-ficha {
-    top: auto;
-    left: 0;
-    right: 0;
-    bottom: 32px;
-    width: 100%;
-    max-height: 62vh;
-    border-left: 0;
-    border-right: 0;
-    border-bottom: 0;
+    top: calc(var(--barra) + env(safe-area-inset-top) + 16px);
+    right: calc(16px + env(safe-area-inset-right));
+    bottom: auto;
+    left: calc(16px + env(safe-area-inset-left));
+    width: auto;
+    max-height: calc(100vh - var(--barra) - env(safe-area-inset-top) - 96px);
+    border: var(--filete);
   }
 
   .grafo-estado span {
@@ -2552,7 +2563,7 @@ body > .hoja:only-child {
   flex: 1;
   flex-direction: column;
   justify-content: center;
-  padding: 12px 48px 12px 16px;
+  padding: 12px 16px;
 }
 
 .grafo-ficha .titulo {
@@ -3150,7 +3161,7 @@ input[type="file"]::file-selector-button {
 }
 
 .grafo-ficha .titulo {
-  padding-right: 40px;
+  padding-right: 0;
 }
 
 .grafo-ficha .ficha-mini-dato {
@@ -4713,19 +4724,213 @@ html[data-modo="noche"] .confirmar::backdrop {
     min-height: 40px;
   }
 
-  /* La ficha baja desde la barra en vez de subir desde el pie, y ocupa el
-     ancho entero para que los filetes lleguen a los dos bordes. Que tape
-     Explorar la red es deliberado. */
+  /* La ficha es una ventana flotante que baja de la barra con márgenes a los
+     lados y arriba, como Explorar la red. No llega a los bordes ni tapa la
+     barra de estado: la altura se acota para dejarla libre abajo. */
   .grafo-ficha {
-    top: var(--barra);
-    right: 0;
+    top: calc(var(--barra) + env(safe-area-inset-top) + 16px);
+    right: calc(16px + env(safe-area-inset-right));
     bottom: auto;
-    left: 0;
+    left: calc(16px + env(safe-area-inset-left));
     width: auto;
-    max-height: calc(100vh - var(--barra) - 32px);
-    border-top: 0;
-    border-right: 0;
-    border-bottom: var(--filete);
-    border-left: 0;
+    max-height: calc(100vh - var(--barra) - env(safe-area-inset-top) - 96px);
+    border: var(--filete);
   }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Captura por voz. El botón flotante vive en toda la app pero sólo aparece en
+   el móvil (voz.js quita el `hidden` cuando hay pantalla táctil y micrófono).
+   Los cuadrados «rec» usan `currentColor`, no `var(--tinta)` crudo, para dar
+   igual en día y noche sin tropezar con la norma de los dos modos.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.voz {
+  position: fixed;
+  right: calc(20px + env(safe-area-inset-right));
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  z-index: 40;
+  font-family: var(--mono);
+}
+
+/* En la portada, `.grafo-estado` es una barra fija que cruza el pie (32px más
+   la zona segura). El botón sube por encima para no solaparla. En las demás
+   pantallas no hay nada fijo abajo a la derecha y se queda en su sitio. */
+.portada .voz {
+  bottom: calc(48px + env(safe-area-inset-bottom));
+}
+
+.voz-lanzar {
+  gap: 8px;
+  min-height: 52px;
+  padding: 8px 16px;
+  background: var(--inverso-fondo);
+  color: var(--inverso-texto);
+}
+
+.voz-icono {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  background: currentColor;
+}
+
+.voz-cuenta {
+  min-width: 18px;
+  padding: 0 4px;
+  background: var(--papel);
+  color: var(--tinta);
+  border: var(--filete);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+
+.voz-panel {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: min(300px, calc(100vw - 40px));
+  background: var(--papel);
+  border: var(--filete);
+}
+
+.voz-panel-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--inverso-fondo);
+  color: var(--inverso-texto);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.voz-cerrar {
+  min-height: 32px;
+  width: 32px;
+  padding: 0;
+  background: transparent;
+  color: var(--inverso-texto);
+  border: 0;
+  font-size: 18px;
+}
+
+.voz-estado {
+  margin: 0;
+  padding: 12px;
+  font-family: var(--lectura);
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.voz-tiempo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 8px;
+  font-size: 22px;
+}
+
+.voz-punto {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  background: currentColor;
+}
+
+.voz-grabar {
+  display: flex;
+  width: calc(100% - 24px);
+  margin: 0 12px 12px;
+  min-height: 48px;
+}
+
+.voz-cola {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: var(--filete);
+  font-size: 11px;
+  color: var(--secundario);
+}
+
+.voz-lista {
+  display: block;
+  padding: 8px 12px;
+  border-top: var(--filete);
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-decoration: none;
+}
+
+@media (hover: hover) {
+  .voz-lista:hover {
+    background: var(--inverso-fondo);
+    color: var(--inverso-texto);
+  }
+
+  .voz-cerrar:hover {
+    background: var(--inverso-texto);
+    color: var(--inverso-fondo);
+  }
+}
+
+/* La lista de audios dentro de Apuntar. */
+
+.entradilla-enlace {
+  margin: 8px 0 0;
+}
+
+.entradilla-enlace a {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .06em;
+}
+
+.audios-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.audio-fila {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  padding: 12px 0;
+  border-top: var(--filete-suave);
+}
+
+.audio-fila:first-child {
+  border-top: 0;
+}
+
+.audio-datos {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.audio-fecha {
+  margin: 0;
+  font-family: var(--lectura);
+  font-size: 16px;
+  line-height: 22px;
+}
+
+.audio-estado {
+  margin: 2px 0 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--secundario);
+}
+
+.audio-oir {
+  flex: none;
 }

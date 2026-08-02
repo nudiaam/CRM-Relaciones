@@ -7,6 +7,7 @@ El esquema se crea al arrancar si no existe. Las bases hechas con versiones
 anteriores se ponen al día en poner_al_dia(), que es idempotente.
 """
 
+import json
 import re
 import secrets
 import sqlite3
@@ -95,11 +96,36 @@ CREATE TABLE IF NOT EXISTS ajuste (
     clave TEXT PRIMARY KEY,
     valor TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS audio (
+    id      INTEGER PRIMARY KEY,
+    archivo TEXT NOT NULL,                       -- nombre del archivo en audios/
+    grabado TEXT NOT NULL,                       -- fecha de grabación (la pone el móvil)
+    estado  TEXT NOT NULL DEFAULT 'pendiente'    -- de momento siempre 'pendiente'
+);
 """
 
 TABLAS_EXPORTABLES = (
     "circulo", "persona", "hecho", "hilo", "nota", "nota_persona", "relacion",
 )
+
+# Los audios son archivos sueltos junto a la base, nunca dentro de ella. La
+# carpeta viaja con el .exe igual que datos.db, y queda fuera de git y de la
+# copia de todo porque contiene voz. De momento no se procesan: sólo se guardan.
+CARPETA_AUDIOS = BASE_DATOS / "audios"
+MAX_AUDIO_BYTES = 60 * 1024 * 1024  # una hora de voz en Opus cabe de sobra
+
+# El navegador decide el contenedor según el móvil: Opus en webm/ogg donde se
+# puede (Android), mp4/AAC donde no (iPhone). El servidor no transcodifica; sólo
+# le pone la extensión que corresponde al tipo que llega.
+EXT_POR_MIME = {
+    "audio/webm": ".webm",
+    "audio/ogg": ".ogg",
+    "audio/mp4": ".m4a",
+    "audio/aac": ".m4a",
+    "audio/mpeg": ".mp3",
+    "audio/wav": ".wav",
+    "audio/x-wav": ".wav",
+}
 
 
 # --------------------------------------------------------------------------
@@ -163,6 +189,7 @@ def poner_al_dia(con):
 def preparar():
     """Crea el esquema y las semillas si hace falta. Idempotente."""
     nueva = not RUTA_DB.exists()
+    CARPETA_AUDIOS.mkdir(exist_ok=True)
     con = conexion()
     with con:
         con.executescript(ESQUEMA)
@@ -1492,6 +1519,111 @@ def borrar_nota(nota_id: int, volver: str = Form("/")):
 
 
 # --------------------------------------------------------------------------
+# captura por voz (paso 1: sólo grabar, subir y guardar)
+#
+# El móvil graba con MediaRecorder y sube el audio por fetch. Aquí se guarda
+# como archivo suelto en audios/ y se anota una fila que lo nombra. Nada de
+# transcripción ni de IA todavía: el estado es siempre 'pendiente'. Ninguna
+# se borra sola; el borrado es manual desde la lista.
+# --------------------------------------------------------------------------
+
+def _json(datos, status=200):
+    return Response(
+        json.dumps(datos), media_type="application/json", status_code=status
+    )
+
+
+@app.post("/audio")
+async def subir_audio(archivo: UploadFile = File(...), grabado: str = Form("")):
+    """Recibe un audio del móvil y lo guarda. Responde JSON, no 303: la subida
+    la hace un fetch desde MediaRecorder, no un formulario. Es la segunda
+    excepción a «POST + redirección», junto con la subida en dos de la foto."""
+    datos = await archivo.read(MAX_AUDIO_BYTES + 1)
+    if not datos:
+        return _json({"ok": False, "motivo": "vacio"}, 400)
+    if len(datos) > MAX_AUDIO_BYTES:
+        return _json({"ok": False, "motivo": "grande"}, 413)
+
+    tipo = (archivo.content_type or "").split(";")[0].strip().lower()
+    ext = EXT_POR_MIME.get(tipo) or Path(archivo.filename or "").suffix.lower()
+    if ext not in EXT_POR_MIME.values():
+        ext = ".webm"
+
+    # La fecha de grabación la manda el móvil; si no llega o no se entiende, se
+    # usa la de llegada, que con la cola offline puede ser bastante posterior.
+    try:
+        grabado_iso = datetime.fromisoformat(
+            grabado.strip()[:19]
+        ).isoformat(timespec="seconds")
+    except ValueError:
+        grabado_iso = ahora_iso()
+
+    CARPETA_AUDIOS.mkdir(exist_ok=True)
+    sello = grabado_iso.replace(":", "").replace("-", "").replace("T", "-")
+    nombre = f"{sello}-{secrets.token_hex(3)}{ext}"
+    (CARPETA_AUDIOS / nombre).write_bytes(datos)
+
+    con = conexion()
+    with con:
+        cur = con.execute(
+            "INSERT INTO audio (archivo, grabado, estado) "
+            "VALUES (?, ?, 'pendiente')",
+            (nombre, grabado_iso),
+        )
+        audio_id = cur.lastrowid
+    con.close()
+    return _json({"ok": True, "id": audio_id})
+
+
+@app.get("/audios")
+def pantalla_audios(request: Request, volver: str = "/nota"):
+    """La lista de audios subidos, para confirmar que han llegado. Vive dentro
+    de Apuntar: es apuntar por voz."""
+    con = conexion()
+    audios = con.execute(
+        "SELECT * FROM audio ORDER BY grabado DESC, id DESC"
+    ).fetchall()
+    con.close()
+    return plantillas.TemplateResponse(
+        request, "audios.html", {"audios": audios, "volver": volver}
+    )
+
+
+@app.get("/audio/{audio_id}")
+def oir_audio(audio_id: int):
+    """Sirve el archivo para poder volver a escuchar el original."""
+    con = conexion()
+    fila = con.execute(
+        "SELECT archivo FROM audio WHERE id = ?", (audio_id,)
+    ).fetchone()
+    con.close()
+    if fila is None:
+        return Response(status_code=404)
+    ruta = CARPETA_AUDIOS / Path(fila["archivo"]).name
+    if not ruta.exists():
+        return Response(status_code=404)
+    return FileResponse(ruta)
+
+
+@app.post("/audio/{audio_id}/borrar")
+def borrar_audio(audio_id: int, volver: str = Form("/audios")):
+    """Borrado manual: se va la fila y también el archivo del disco."""
+    con = conexion()
+    fila = con.execute(
+        "SELECT archivo FROM audio WHERE id = ?", (audio_id,)
+    ).fetchone()
+    with con:
+        con.execute("DELETE FROM audio WHERE id = ?", (audio_id,))
+    con.close()
+    if fila is not None:
+        try:
+            (CARPETA_AUDIOS / Path(fila["archivo"]).name).unlink(missing_ok=True)
+        except OSError:
+            pass
+    return vuelve(volver, "/audios")
+
+
+# --------------------------------------------------------------------------
 # 5. el JSON de la red. Sólo personas: los temas ya no existen, el circulo
 #    hace ese trabajo. Los ids de las aristas van prefijados: p3.
 # --------------------------------------------------------------------------
@@ -1634,8 +1766,6 @@ def api_grafo():
 @app.get("/exportar")
 def exportar():
     """La base de datos entera en JSON. La llave de red no se exporta."""
-    import json
-
     con = conexion()
     volcado = {"exportado": ahora_iso()}
     for tabla in TABLAS_EXPORTABLES:

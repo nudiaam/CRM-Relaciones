@@ -99,6 +99,23 @@ Quien no tiene círculo **no se agrupa**: reparto libre en el volumen exterior.
 
 Subirlo agrupa más pero junta los puntos. Si lo cambias, vuelve a medir.
 
+## `voz.js` (captura por voz)
+
+Cargado en todas las pantallas desde `base.html`, aparte de `app.js`.
+
+- Sólo actúa en móvil: `puedeGrabar()` exige puntero grueso, `MediaRecorder`,
+  `getUserMedia` e IndexedDB. Si no, el botón flotante `[data-voz]` sigue
+  `hidden` y en escritorio no aparece.
+- Graba con `MediaRecorder`, elige contenedor Opus si se puede (`elegirMime`),
+  cronómetro por `setInterval`.
+- **Cola offline en IndexedDB** (`relaciones-voz` › `pendientes`): al parar,
+  guarda el blob *antes* de intentar subir, así el audio no se pierde con el
+  servidor apagado. `subirTodo()` reintenta al abrir la app, al evento `online`
+  y con el botón *Reintentar*; borra de la cola sólo lo que el servidor confirma.
+- No toca el service worker ni cachea nada.
+- El reproductor de `/audios` (`prepararReproductor`) usa un solo `Audio`
+  compartido, sin `<audio controls>` nativo.
+
 ### Lo que no se debe hacer en la red
 
 - No dibujarla pixelada ni a resolución reducida. Se probó y destrozaba las
