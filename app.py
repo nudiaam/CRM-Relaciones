@@ -1831,6 +1831,7 @@ ESTADOS_TRABAJANDO = ("pendiente", "transcribiendo", "analisis_pendiente", "anal
 _aviso_modelos = threading.Event()
 _hilo_modelos = None
 _whisper = None
+_whisper_dispositivo = None
 
 
 def contexto_para_qwen(con):
@@ -2644,21 +2645,44 @@ def nombres_para_whisper(contexto):
     return ", ".join(nombres)
 
 
-def transcribir_audio(ruta, contexto):
-    global _whisper
-    if _whisper is None:
-        from faster_whisper import WhisperModel
-        try:
-            _whisper = WhisperModel(MODELO_WHISPER, device="cuda", compute_type="float16")
-        except Exception:
-            _whisper = WhisperModel(MODELO_WHISPER, device="cpu", compute_type="int8")
-    nombres = nombres_para_whisper(contexto)
-    segmentos, _ = _whisper.transcribe(
+def _transcribir_con_whisper(modelo, ruta, nombres):
+    segmentos, _ = modelo.transcribe(
         str(ruta), language="es", vad_filter=True,
         vad_parameters={"min_silence_duration_ms": 500},
         condition_on_previous_text=False, hotwords=nombres, initial_prompt=nombres,
     )
-    return " ".join(s.text.strip() for s in segmentos if s.text.strip()).strip()
+    # faster-whisper devuelve un generador: los errores de CUDA pueden aparecer
+    # aquí, al recorrerlo, y no sólo al construir el modelo.
+    return " ".join(
+        segmento.text.strip()
+        for segmento in segmentos
+        if segmento.text.strip()
+    ).strip()
+
+
+def transcribir_audio(ruta, contexto):
+    global _whisper, _whisper_dispositivo
+    if _whisper is None:
+        from faster_whisper import WhisperModel
+        try:
+            _whisper = WhisperModel(MODELO_WHISPER, device="cuda", compute_type="float16")
+            _whisper_dispositivo = "cuda"
+        except Exception:
+            _whisper = WhisperModel(MODELO_WHISPER, device="cpu", compute_type="int8")
+            _whisper_dispositivo = "cpu"
+    nombres = nombres_para_whisper(contexto)
+    try:
+        return _transcribir_con_whisper(_whisper, ruta, nombres)
+    except Exception:
+        if _whisper_dispositivo != "cuda":
+            raise
+        # CTranslate2 puede crear el modelo CUDA y fallar sólo al empezar a
+        # calcular —por ejemplo, si Windows no encuentra cublas64_12.dll—.
+        # En ese caso repetimos el mismo audio en CPU en lugar de dejarlo parado.
+        from faster_whisper import WhisperModel
+        _whisper = WhisperModel(MODELO_WHISPER, device="cpu", compute_type="int8")
+        _whisper_dispositivo = "cpu"
+        return _transcribir_con_whisper(_whisper, ruta, nombres)
 
 
 def _tomar_audio(estado, trabajando):

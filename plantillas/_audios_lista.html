@@ -1,5 +1,5 @@
 {% if audios %}
-<ul class="audios-lista">
+<ul class="audios-lista{% if audios_paginas > 1 %} audios-lista-paginada{% endif %}">
   {% for a in audios %}
   <li class="audio-fila" data-audio-fila data-audio-id="{{ a.id }}">
     <div class="audio-datos">

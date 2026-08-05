@@ -1320,3 +1320,43 @@ construir nada encima.
   automático del navegador, que era quien la recolocaba. La posición se reafirma
   durante dos pintados consecutivos para cubrir el ajuste de foco del control.
   Recursos actualizados a `?v=20260805g`.
+
+### 2026-08-05 — README para quien descubre e instala Relaciones
+
+- El README deja de abrir con la arquitectura y presenta primero qué problema
+  resuelve Relaciones, con un ejemplo reconocible y un recorrido por sus cuatro
+  pantallas.
+- La instalación recomendada es ahora la carpeta portátil con `Relaciones.exe`:
+  explica el aviso de Windows, dónde nacen `datos.db` y `audios/`, por qué no se
+  debe mover el ejecutable solo y cómo crear un acceso directo.
+- Ollama, Qwen, Whisper y Tailscale quedan como ampliaciones opcionales, con
+  pasos separados, expectativas sobre las primeras descargas y una advertencia
+  explícita de usar Tailscale Serve, nunca Funnel.
+- Se añadieron instrucciones de primera apertura, copia completa, actualización,
+  desinstalación y resolución de los fallos más habituales. Python, Git y la
+  construcción del ejecutable pasan a un apéndice para personas técnicas.
+
+### 2026-08-05 — Whisper cae a CPU si CUDA falla al transcribir
+
+- El audio 11 se subió completo, pero permaneció pendiente hasta reiniciar. Al
+  reintentarlo apareció el error real: `cublas64_12.dll` no estaba disponible.
+- La caída a CPU sólo cubría la construcción de `WhisperModel`. faster-whisper
+  devuelve un generador y CUDA puede fallar después, al recorrer los segmentos;
+  ese error dejaba el audio en `error_transcripcion` sin probar el procesador.
+- La transcripción se consume ahora dentro de `_transcribir_con_whisper()`. Si
+  el modelo activo era CUDA y falla en cualquier momento, se reconstruye una
+  sola vez en CPU con `int8` y se repite el mismo archivo. Si CPU también falla,
+  se conserva el error normal para poder diagnosticarlo.
+
+### 2026-08-05 — El archivo de audios conserva su posición
+
+- Las flechas del archivo de audios llevan un marcador explícito para que el
+  bloque común de navegación guarde la posición antes de cambiar de página.
+  El ancla `#audios` queda como respaldo sin JavaScript, pero ya no provoca el
+  salto cuando el navegador puede restaurar el punto exacto.
+- El paginador queda cerrado también por debajo con un filete, agrupando la
+  lista, las flechas y el número de página en una sola pieza visual. Si hay
+  varias páginas, el listado conserva el alto de cinco filas: sin esa reserva,
+  una última página corta reducía el alto del documento y el navegador no
+  podía restaurar la posición aunque estuviera guardada. Recursos actualizados
+  a `?v=20260805i`.

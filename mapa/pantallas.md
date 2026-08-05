@@ -107,6 +107,10 @@ su resumen. Usa el control de fecha propio y conserva el respaldo `<noscript>`.
 
 `_audios_lista.html` es el contenido compartido por el final de Notas y la ruta
 antigua `/audios`; `_audios_paginas.html` comparte sus flechas de paginación.
+Las flechas conservan la posición exacta de la pantalla y el paginador lleva
+filete superior e inferior para cerrar visualmente el bloque. Cuando hay varias
+páginas, la lista reserva la altura de sus cinco filas para que la última
+página no encoja la pantalla ni impida restaurar el punto de lectura.
 Sólo llegan a ambas plantillas filas cuyo archivo todavía existe. Enseña fecha natural,
 estado del proceso, un botón *Escuchar* propio (sin control
 nativo, lo mueve `voz.js`) y *Eliminar* manual con confirmación. La grabadora

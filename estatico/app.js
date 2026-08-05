@@ -1443,6 +1443,7 @@
           destino.origin === location.origin
           && (
             (destino.pathname === location.pathname && !destino.hash)
+            || enlace.closest('[data-conservar-posicion]')
             || (regreso
                 && regreso.origin === location.origin
                 && regreso.pathname === location.pathname)

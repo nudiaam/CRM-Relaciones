@@ -51,6 +51,9 @@ navegador no tiene `showModal`, se cae al `confirm()` de siempre.
   volver de un formulario y sobrevive también al recorrido de editar una
   quedada fuera de la ficha y regresar después. Si hay una posición pendiente,
   el ancla se retira en el `<head>` antes de que el navegador pueda saltar a ella.
+- Los controles marcados con `data-conservar-posicion`, como las flechas del
+  archivo de audios, guardan también el punto exacto aunque su enlace lleve un
+  ancla de respaldo.
 - El borrado de audio intercepta el segundo envío, ya confirmado, y retira la
   fila mediante `fetch`: no recarga ni cambia la posición de la página.
 - El proceso del audio se refresca por fragmentos HTML mientras trabajan los

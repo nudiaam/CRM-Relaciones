@@ -1,5 +1,6 @@
 {% if audios_paginas > 1 %}
-<nav class="archivo-paginacion audios-paginacion" aria-label="Páginas del archivo de audios">
+<nav class="archivo-paginacion audios-paginacion" data-conservar-posicion
+     aria-label="Páginas del archivo de audios">
   {% if audios_anterior %}
   <a href="{{ audios_anterior }}" aria-label="Audios más recientes">←</a>
   {% else %}

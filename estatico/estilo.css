@@ -4899,6 +4899,10 @@ html[data-modo="noche"] .confirmar::backdrop {
   padding: 0;
 }
 
+.audios-lista-paginada {
+  min-height: 360px;
+}
+
 .audio-fila {
   display: flex;
   align-items: center;
@@ -5465,6 +5469,7 @@ html[data-modo="noche"] .confirmar::backdrop {
 
 .audios-paginacion {
   margin-top: -1px;
+  border-bottom: var(--filete);
 }
 
 .notas-archivo > summary:focus-visible {

@@ -96,6 +96,9 @@ Busca `# captura por voz` en `app.py` (entre las quedadas y la red).
   Sigue fuera de `TABLAS_EXPORTABLES`.
 - Un hilo demonio toma la cola de uno en uno: faster-whisper `large-v3` produce
   el texto y Ollama `qwen3:14b` devuelve `contrato_qwen()`. Ambos son locales.
+  Whisper intenta CUDA primero, pero el recorrido del generador también queda
+  protegido: si CUDA falla al empezar a calcular, reconstruye el modelo en CPU
+  y repite el mismo audio automáticamente.
 - Qwen separa propuesta, auditoría, inventario factual y redacción final. Los
   dos últimos pasos usan esquemas mínimos para impedir que el texto adaptado
   pierda acompañantes, transporte, fechas, horas o lugares. El contrato v2
