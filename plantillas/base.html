@@ -20,9 +20,9 @@
   <link rel="icon" href="/estatico/icono/icono-192.png" sizes="192x192">
   <link rel="apple-touch-icon" href="/estatico/icono/icono-180.png">
 
-  <link rel="stylesheet" href="/estatico/estilo.css?v=20260802d">
-  <script src="/estatico/app.js?v=20260802d"></script>
-  <script src="/estatico/voz.js?v=20260802d"></script>
+  <link rel="stylesheet" href="/estatico/estilo.css?v=20260805g">
+  <script src="/estatico/app.js?v=20260805g"></script>
+  <script src="/estatico/voz.js?v=20260805g"></script>
 </head>
 <body class="{% block clase_body %}{% endblock %}">
   <a class="saltar" href="#contenido">Saltar al contenido</a>
@@ -36,7 +36,7 @@
     <nav aria-label="Principal">
       <a href="/"{% if request.url.path == '/' %} aria-current="page"{% endif %}>Red</a>
       <a href="/personas"{% if request.url.path.startswith('/persona') %} aria-current="page"{% endif %}>Personas</a>
-      <a class="nav-apuntar" data-atajo-n href="/nota?volver={{ request.url.path }}{% if request.url.query %}%3F{{ request.url.query }}{% endif %}{% if p is defined %}&amp;persona={{ p.id }}{% endif %}"{% if request.url.path == '/nota' %} aria-current="page"{% endif %}>Apuntar <kbd>N</kbd></a>
+      <a class="nav-apuntar" data-atajo-n href="/nota?volver={{ request.url.path }}{% if request.url.query %}%3F{{ request.url.query }}{% endif %}{% if p is defined %}&amp;persona={{ p.id }}{% endif %}"{% if request.url.path == '/nota' %} aria-current="page"{% endif %}>Notas <kbd>N</kbd></a>
       <a href="/ajustes"{% if request.url.path == '/ajustes' %} aria-current="page"{% endif %}>Ajustes</a>
     </nav>
   </header>
@@ -45,34 +45,11 @@
   <main class="hoja" id="contenido"{% block acento %}{% endblock %}>{% block contenido %}{% endblock %}</main>
   {% endblock %}
 
-  {# Grabar por voz desde cualquier pantalla, a un toque. Sólo aparece en el
-     móvil: voz.js le pone la clase `puede-grabar` al <body> cuando hay pantalla
-     táctil y el navegador sabe grabar. En la ventana de escritorio no sale. #}
-  <div class="voz" data-voz hidden>
-    <button class="voz-lanzar" type="button" data-voz-lanzar aria-expanded="false"
-            aria-label="Apuntar una nota de voz">
-      <span class="voz-icono" aria-hidden="true"></span>
-      <span class="voz-lanzar-texto">Voz</span>
-      <span class="voz-cuenta" data-voz-cuenta hidden aria-hidden="true"></span>
-    </button>
-    <div class="voz-panel" data-voz-panel hidden role="group" aria-label="Apuntar por voz">
-      <div class="voz-panel-cabecera">
-        <span>Apuntar por voz</span>
-        <button class="voz-cerrar" type="button" data-voz-cerrar aria-label="Cerrar">×</button>
-      </div>
-      <p class="voz-estado" data-voz-estado>Toca grabar y habla.</p>
-      <div class="voz-tiempo" data-voz-tiempo aria-live="off" hidden>
-        <span class="voz-punto" aria-hidden="true"></span>
-        <span data-voz-reloj>00:00</span>
-      </div>
-      <button class="voz-grabar boton-solido" type="button" data-voz-grabar>Grabar</button>
-      <div class="voz-cola" data-voz-cola hidden>
-        <span data-voz-cola-texto></span>
-        <button class="discreto" type="button" data-voz-reintentar>Reintentar</button>
-      </div>
-      <a class="voz-lista" href="/audios">Ver audios apuntados →</a>
-    </div>
-  </div>
+  {# En Notas la misma grabadora se incluye dentro del contenido, arriba. En
+     las demás pantallas conserva su posición flotante. #}
+  {% if request.url.path != '/nota' %}
+  {% include "_grabadora.html" %}
+  {% endif %}
 
   {# Sustituye al confirm() del navegador, que sale arriba, sin estilo y
      anunciando la dirección del servidor. #}

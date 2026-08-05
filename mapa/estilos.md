@@ -19,8 +19,8 @@ Está escrita en el propio CSS, junto a las variables. Resumen:
 3. Si una superficie rellena necesita retoque de noche, va **en su propia
    regla** con estas variables. La lista gigante de `html[data-modo="noche"]`
    (línea ~3658) es deuda antigua: **no crece**.
-4. El rojo de borrar es `var(--alarma)` con `var(--alarma-texto)`, y sólo
-   aparece al señalar. Ningún otro color entra.
+4. `var(--alarma)` se reserva para el hover de borrar y para una identidad de
+   voz dudosa hasta confirmarla. Ningún otro color entra.
 
 Para comprobarlo: `node mapa/auditar_inverso.js`. Lista los estados invertidos
 con tinta cruda; los únicos aceptables son los de la regla 2.
@@ -56,7 +56,7 @@ porque `:root` es el `<html>` que lleva el modo.
 | Archivador de personas | 774 |
 | Ficha (capas antiguas) | 1249 |
 | Zona peligrosa | 1538 |
-| Apuntar | 1585 |
+| Notas y editor de quedadas | 1585 |
 | Ajustes | 1697 |
 | Red | 1760 |
 | Adaptación (media queries) | 1991 |
@@ -64,6 +64,7 @@ porque `:root` es el `<html>` que lleva el modo.
 | **Ficha completa, capa vigente** | 3830 |
 | Controles propios: círculo y fecha | 4243 |
 | Móvil: ficha, filetes, plegado | 4472 |
+| **Notas: audio activo y captura por persona** | 4937 |
 
 ## Componentes vigentes de la ficha
 
@@ -80,6 +81,10 @@ porque `:root` es el `<html>` que lleva el modo.
 | Relaciones | 4185 | `.bloque-cuerpo .relaciones-lista` |
 | Círculo (radios) | 4243 | `.opciones {` |
 | Fecha (atajos y calendario) | 4337 | `.fecha-atajos {` |
+
+El marco `.ficha` desactiva el anclaje automático de desplazamiento del
+navegador. Al mostrar u ocultar controles dentro de un bloque, el cambio de
+altura no debe recolocar por su cuenta el punto que la persona está leyendo.
 
 ## Cabeceras de sección: quién lleva caja y quién no
 
@@ -113,6 +118,22 @@ se retoma, hay que colorear **también esos dos hijos**, no sólo el contenedor.
   no con `var(--tinta)` crudo, para no disparar la norma de los dos modos que
   comprueba `comprobar.py`. En `body.portada` el botón sube por encima de
   `.grafo-estado` para no solaparla.
+- En `.pagina-notas`, esa misma `.voz` pasa a posición estática dentro de
+  `.notas-grabadora`; no hay una segunda grabadora. Los formularios personales
+  llevan también `.ficha`, por lo que heredan marco y cabeceras sin duplicarlas.
+- `.captura-aviso` y `.captura-bloques` desaparecen cuando están vacíos: no
+  reservan un hueco antes de elegir persona. El archivo usa un `<details>` con
+  cabecera de panel y la paginación compartida, sin desplazamiento interno.
+- Los cuatro apartados de cada borrador usan el `.bloque-plegar` real de la
+  ficha. Empiezan abiertos y conservan contador y signo; la ayuda de *Descartar
+  borrador* aclara en mono gris que la ficha personal permanece intacta.
+- En el borrador automático, las acciones finales admiten dos formularios:
+  *Descartar bloque* y *Confirmar esta persona*. Ambos ocupan todo el ancho en
+  móvil y mantienen su tamaño natural en escritorio.
+- `.bloque-plegar` fija la alineación a la izquierda incluso sin contador; los
+  cuerpos editables de la captura mantienen la misma alineación.
+- `.audio-volver-form` reparte el aviso vivo y el botón en una sola línea, con
+  el mismo texto mono de la interfaz; no introduce una barra ni una animación.
 - La **ficha flotante de la red** (`.grafo-ficha`) es una ventana con barra de
   título (`.grafo-ficha-titulo`, reutiliza `.ventana-titulo`) que dice «Ficha
   resumida» y lleva la × dentro. En móvil flota con márgenes de 16px a los lados

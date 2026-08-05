@@ -52,7 +52,7 @@ nombres viejos que en pantalla se dicen de otra manera:
 | `nota` | **Quedadas** |
 | `relacion` | **Relaciones** |
 | cerrar un hilo | **Ya está** |
-| escribir una nota | **Apuntar algo** |
+| abrir la captura | **Notas** o **Añadir nota** |
 | exportar | **Guardar una copia de todo** |
 | última nota | **Hablamos hace** (y el valor no repite el «hace»: *tres días*) |
 
@@ -76,7 +76,7 @@ circulo(id, nombre, orden)
 persona(id, nombre, apodo, circulo_id, color, cumple, notas_rapidas, foto, creada)
 hecho(id, persona_id, texto, creado)
 hilo(id, persona_id, texto, abierto_desde, cerrado_el, tipo)
-nota(id, fecha, canal, texto, creada)
+nota(id, fecha, canal, texto, resumen, creada)
 nota_persona(nota_id, persona_id)
 relacion(persona_a, persona_b, etiqueta, etiqueta_inversa)
 ajuste(clave, valor)                          -- sólo guarda la llave de red
@@ -89,6 +89,8 @@ Lo que no es evidente:
   subtítulo en la ficha completa y en la ficha rápida de Personas.
 - Una **nota** puede mencionar a varias personas, por eso no cuelga de una
   persona: hay tabla intermedia. Es lo que teje la red sin trabajo extra.
+  El `resumen` opcional se enseña en fichas compactas; la ficha completa usa
+  siempre `texto`. Las quedadas antiguas usan el texto como alternativa corta.
 - **hecho** es lo que no caduca: odia el cilantro, su hermana se llama Ana.
 - **hilo** es lo que sí caduca, y su `tipo` lo parte en dos cosas distintas:
   `pendiente` es lo que yo tengo que hacer por esa persona; `preguntar` es algo
@@ -129,12 +131,15 @@ Lo que no es evidente:
    edición personal queda al final y las **quedadas se paginan de diez en diez**.
    Cada quedada lleva a su pantalla de edición y cada relación se edita en la
    propia ficha, mostrando con nombres qué significa en ambos sentidos.
-4. `/nota` es un recorrido lineal: qué ocurrió, cuándo y por dónde, con quién.
-   Sigue accesible con la tecla `N` y `Ctrl + Enter`. `/nota/{id}` reutiliza el
-   recorrido para cambiar una quedada, incluidas fecha, canal y personas.
+4. `/nota` es **Notas** y sigue accesible con la tecla `N`: grabadora integrada
+   arriba en móvil, audio activo opcional, captura manual por persona y archivo
+   de audios al final. Cada persona tiene un formulario independiente con
+   pendientes, preguntas y datos repetibles, más una quedada con día, resumen
+   y texto completo. Los audios se transcriben con faster-whisper y Qwen prepara
+   esos mismos bloques para revisarlos. `/nota/{id}` edita una quedada existente.
 5. `/ajustes` contiene modo día/noche, administración de círculos y copia de todo.
 
-La navegación principal muestra siempre: *Red*, *Personas*, *Apuntar* y *Ajustes*.
+La navegación principal muestra siempre: *Red*, *Personas*, *Notas* y *Ajustes*.
 
 ## El estilo: interfaz pixelada 1-bit
 
@@ -144,8 +149,9 @@ deliberada, nunca decorada por nostalgia sin función.
 
 - Sólo papel `#f4efe1` y tinta `#14120f`; noche invierte ambos. El color guardado
   de una persona sigue siendo un dato editable, pero no rompe la interfaz 1-bit.
-  **Única excepción**: `--alarma`, un rojo rebajado que aparece sólo al señalar
-  con el ratón un botón que borra. En reposo esos botones siguen grises.
+  **Excepciones acotadas**: `--alarma`, un rojo rebajado que aparece al señalar
+  con el ratón un botón que borra y en la identidad que la voz dejó dudosa.
+  En el segundo caso permanece hasta confirmar con ✓ o elegir otra persona.
 - Departure Mono se incluye localmente en `estatico/tipos/` bajo SIL OFL. Se usa
   a 11px para navegación, controles y rótulos. El texto largo usa serif a 16px.
 - Títulos personales a 33px. Cuerpo a 16px. Interfaz a 11px.
@@ -154,9 +160,8 @@ deliberada, nunca decorada por nostalgia sin función.
 - Las secciones se separan con aire, filete y un pequeño cuadrado de tinta.
   Las bandas negras se reservan para acciones o estados seleccionados; no se
   repiten como cabecera de todos los paneles. **Única excepción**: en la ficha
-  completa (`/persona/{id}`) cada bloque sí lleva su cabecera rellena, porque
-  sin ella no se distinguía dónde acaba una sección y empieza su contenido.
-  Fuera de esa pantalla la regla sigue entera.
+  completa (`/persona/{id}`) y en los bloques personales de Notas cada sección
+  sí lleva su cabecera rellena. Comparten exactamente `.bloque-cabecera`.
 - **Toda superficie rellena usa `var(--inverso-fondo)` y `var(--inverso-texto)`,
   nunca tinta y papel crudos.** En día dan lo mismo; en noche, la tinta cruda es
   crema y produce una caja brillante que no pega con nada. Las marcas pequeñas
@@ -172,7 +177,7 @@ deliberada, nunca decorada por nostalgia sin función.
   contorno visible de 2px.
 - Se admiten retículas de una y dos columnas según la tarea, con texto largo
   limitado a 640px. En móvil todo vuelve a una columna.
-- Las columnas de Personas, Apuntar y Ajustes se centran en la ventana, pero el
+- Las columnas de Personas, Notas y Ajustes se centran en la ventana, pero el
   texto permanece alineado a la izquierda.
 - No crear desplazamiento interno si el contenido puede crecer con la página.
   Cuando una región acotada lo necesita, su barra es fina, monocroma, integrada
@@ -1025,3 +1030,293 @@ construir nada encima.
 - Se retiró el `padding-right: 48px` que reservaba hueco para la × cuando
   flotaba sobre el nombre; la identidad vuelve a 16px a ambos lados.
 - Los recursos van por `?v=20260802d`.
+
+### 2026-08-03 — Fase 0 de Notas: captura manual por persona
+
+- La pestaña visible **Apuntar pasa a llamarse Notas**. Se conservan `/nota` y
+  las tablas internas para no mover rutas ni datos; los accesos desde las
+  fichas dicen *Añadir nota*. La tecla `N` sigue abriendo la pestaña.
+- `/nota` estrena `notas.html`. El orden es: grabadora · audio activo opcional ·
+  captura manual · archivo de audios. `/nota/{id}` conserva `nota.html` para
+  editar una quedada existente.
+- **La grabadora es la misma**, extraída a `_grabadora.html`: dentro de Notas
+  queda arriba y en el flujo de la página; en el resto sigue flotante. No se
+  cambió `voz.js`, la cola offline ni el formato de los audios.
+- **Audio activo**: se puede elegir una grabación existente o trabajar sin
+  audio. La elección actualiza el reproductor, propaga `audio_id` a los bloques
+  abiertos y propone como día de la quedada el día de grabación. En esta fase
+  no se transcribe, no se analiza, no cambia `audio.estado` y no se borra nada.
+- **Captura por persona**: el selector integrado sólo admite gente que ya está
+  en la base. Cada elección abre un formulario `.ficha` independiente con
+  identidad y las cabeceras `.bloque-*` ya existentes. *Queda pendiente*,
+  *Preguntar por* y *Datos* admiten varias filas; la quedada es una sola y lleva
+  día, resumen corto y texto completo adaptado. Todo es opcional salvo que, si
+  se usa la quedada, se piden sus dos textos.
+- `POST /nota/persona/{id}` guarda sólo ese formulario, en una transacción:
+  varios `hilo`, varios `hecho` y, si existe, una `nota` enlazada a esa persona.
+  Sigue siendo un formulario HTML normal con 303. JavaScript lo envía como
+  mejora para retirar sólo el bloque confirmado y conservar los demás.
+- Los campos llevan `data-campo` y nombres estables para que el futuro contrato
+  de Qwen reproduzca exactamente la estructura que ahora se rellena a mano.
+  Qwen y Whisper **no se integraron** en esta fase.
+- **Esquema**: `nota` añade `resumen TEXT`, mediante `poner_al_dia()` idempotente.
+  Personas y Red enseñan `resumen` en sus fichas compactas; la ficha completa
+  sigue enseñando sólo `texto`. Las filas antiguas, con resumen vacío, caen a
+  su texto actual. No se perdió ni se transformó ningún dato real.
+- El archivo se comparte en `_audios_lista.html` entre el final de Notas y la
+  ruta antigua `/audios`, que se conserva. Los nombres físicos siguen siendo
+  internos; en pantalla los audios se nombran por fecha y hora naturales.
+- Comprobado con una base temporal: dos pendientes, dos preguntas, dos datos y
+  una quedada se guardan en la ficha correcta; la vista compacta usa el resumen
+  y la completa el texto largo. La base real sólo recibió la columna nueva.
+- Revisado a **375 px en día y noche** contra `/persona/{id}`. Se corrigió el
+  solapamiento móvil de *Quitar bloque*. El navegador quedó sin errores, el mapa
+  pasa y los recursos suben a `?v=20260803a`.
+
+### 2026-08-03 — Notas: archivo real, plegado y paginado
+
+- La captura vacía ya no reserva altura para el aviso ni para los bloques: antes
+  de elegir persona, el archivo sube y desaparece el hueco sin función.
+- La apertura normal de `/nota` sigue sin persona seleccionada. La captura de
+  Karmela que se enseñó para validar la ficha era un estado de prueba elegido a
+  mano, no el estado inicial de la pantalla.
+- Tanto el selector de audios pendientes como el archivo visible descartan las
+  filas cuyo archivo ya no existe en `audios/`. Las filas huérfanas se conservan
+  en la base: abrir la pantalla no borra ni repara datos silenciosamente.
+- El archivo de audios queda plegado por defecto y se pagina de cinco en cinco,
+  con las mismas flechas y filetes del archivador. Al cambiar de página o borrar
+  manualmente, vuelve abierto a su ancla.
+- Recursos actualizados a `?v=20260803b`.
+
+### 2026-08-03 — Audios enlazados, borradores plegables y tarjeta multimedia
+
+- **Invariante de audio:** cada fila de `audio` tiene exactamente un archivo en
+  `audios/` y viceversa. `reconciliar_audios()` se ejecuta al arrancar, recupera
+  archivos sueltos como pendientes, retira filas sin original, resuelve
+  duplicados y crea un índice único por nombre físico.
+- La subida escribe primero un temporal y confirma fila + archivo con
+  compensación de errores. El borrado aparta el archivo antes de tocar SQLite y
+  lo restaura si la transacción falla. `.audios-borrados/` queda fuera de git.
+- La base real tenía seis filas para cuatro archivos: se retiraron las dos filas
+  sin original. No se borró ni alteró ninguno de los cuatro audios existentes.
+- Los apartados *Queda pendiente*, *Preguntar por*, *Quedada* y *Datos* de cada
+  borrador empiezan plegados y reutilizan el control de plegado de la ficha.
+- *Quitar bloque* pasa a **Descartar borrador**, con una aclaración visible de
+  que sólo retira el formulario sin borrar la persona ni cambiar su ficha.
+- El reproductor publica metadatos propios para la tarjeta multimedia de
+  Android: *Nota de voz*, fecha/hora y logotipo. El modo claro usa el icono
+  original y el oscuro `audio-oscuro-512.png`, derivado de forma determinista
+  con carbón `#23241f` y crema `#ddd6c6`.
+- Recursos actualizados a `?v=20260803c`.
+
+### 2026-08-03 — Transcripción local, contrato Qwen y revisión por persona
+
+- Los audios pendientes se procesan automáticamente, uno por uno, en un hilo
+  demonio: `faster-whisper` usa `large-v3` en CUDA (con caída local a CPU) y
+  Ollama usa `qwen3:14b`. Ninguno habla con internet. Si la app se cierra a
+  mitad, `poner_al_dia()` recupera el estado para continuar al abrir.
+- `audio` añade de forma idempotente transcripción, marca de edición, borrador
+  JSON, error, fecha de actualización y versión del contrato. `audio_registro`
+  enlaza cada hilo, dato o quedada confirmada con su grabación de origen. La
+  migración es aditiva y no borra ni transforma datos existentes.
+- El contrato versionado devuelve bloques por persona existente: pendientes,
+  preguntas y datos repetibles; una quedada con día, resumen y texto adaptado;
+  candidatos, identidad dudosa y contenido sin asignar. La aplicación valida
+  todos los ids y funde dos menciones de una misma persona antes de enseñar nada.
+- La persona que habla es siempre la del círculo *Yo*. «Mi madre» se resuelve
+  por la relación explícita y un posprocesado evita separar Carmela, Karmela y
+  «mi madre». Entre homónimos, las conexiones con el resto del grupo deciden
+  sólo si existe una ventaja clara; en empate, la propuesta queda roja y no se
+  guarda hasta pulsar ✓ o elegir otra persona.
+- La fecha de la quedada del borrador es siempre la fecha de grabación: un
+  viernes o un día 11 mencionados dentro son contenido, no el día de la llamada.
+  El resumen se limita a 160 caracteres y `sin_asignar` no repite texto que ya
+  pertenezca a un bloque.
+- El audio activo carga `_audio_proceso.html`: estado, transcripción plegada,
+  borrador editable y confirmación individual. *Volver a analizar* repite
+  Whisper desde el original. *Editar* desbloquea el texto y se convierte en
+  *Enviar a Qwen*, que no repite Whisper. *Validar todo* guarda sólo bloques
+  completos y deja en pantalla los dudosos o incompletos. Al confirmar una
+  persona, su bloque desaparece.
+- Una quedada de grupo se guarda una sola vez y se enlaza con todas sus personas.
+  Los bloques ya confirmados permanecen en el JSON como memoria para que un
+  nuevo análisis del mismo audio no vuelva a proponerlos.
+- El borrado manual de audios sigue usando el diálogo propio, pero el segundo
+  envío se hace por `fetch`: retira la fila sin recargar ni mover la página.
+- Prueba real con el único audio: Whisper transcribió «mi madre, Karmela» y Qwen
+  produjo un solo bloque, persona 2 (Karmela), sin ambigüedad. No se confirmó el
+  bloque, así que ninguna ficha cambió. La transcripción y el borrador quedaron
+  guardados en la fila del audio para revisarlos desde la app.
+- Pruebas de identidad: Marina + Nacho + Susi + Marta elige a Marti Marti
+  (Barrio) por tres conexiones frente a ninguna de Marta (Trabajo); una Lucía
+  aislada conserva las dos candidatas y queda pendiente de confirmación.
+- Revisado en escritorio y a 375 px, día y noche: sin desbordamiento horizontal,
+  sin errores de consola y con el mismo lenguaje de la ficha. Recursos en
+  `?v=20260803d`.
+
+### 2026-08-03 — Lenguaje natural, fechas y canal en el borrador de voz
+
+- El contrato Qwen pasa a v2 y añade el canal editable de la quedada. La llamada
+  del audio real se reconoce como *Llamada* y se guarda en `nota.canal` sólo al
+  validar el bloque.
+- La clasificación ya no depende de que la voz diga literalmente «preguntar»:
+  un acontecimiento futuro significativo propone seguimiento. Como la cabecera
+  ya dice *Preguntar por*, el contenido es el asunto natural —*El viaje a
+  Huelva*—, sin otra pregunta ni una fecha de agenda.
+- Qwen hace una primera propuesta y una segunda auditoría de clasificación,
+  identidad, calendario, canal y fidelidad. El normalizador corrige combinaciones
+  imposibles de día y fecha, resuelve referencias cercanas y bloquea planes,
+  viajes y compras puntuales en Datos.
+- El resumen compacto usa una frase humana y tiempo relativo; la versión
+  extendida conserva fechas, horarios y discurso indirecto. En la prueba real:
+  *Hablamos de que se iba de viaje a Huelva esa misma semana* y, en el texto
+  completo, viernes 7 de agosto, salida a las 8:00, llegada a las 16:00 y vuelta
+  el martes 11.
+- El borrador corregido permanece sin confirmar. `audio_registro` sigue vacío
+  para ese audio, por lo que la ficha de Karmela no ha recibido todavía ningún
+  hilo, dato ni quedada. Recursos actualizados a `?v=20260803e`.
+
+### 2026-08-03 — Arranque automático dentro del entorno de los modelos
+
+- Un arranque desde el Python global podía levantar FastAPI con normalidad pero
+  fallar después al importar `faster_whisper`. El audio quedaba intacto en estado
+  de error y la consola repetía que faltaba el módulo.
+- `main.py` se relanza ahora con `venv/Scripts/python.exe` antes de importar la
+  aplicación siempre que se ejecute desde el código y exista ese entorno. Ya no
+  depende del comando de activación propio de cada terminal. El ejecutable
+  empaquetado mantiene su arranque actual.
+
+### 2026-08-03 — Recuperación del audio 8 y borrador sin contaminación
+
+- El audio 8 falló inicialmente porque el servidor escuchaba en 9765 desde el
+  Python global, que no tenía `faster_whisper`. El `venv` estaba sano y contenía
+  `faster-whisper 1.2.1` y `ctranslate2 4.8.1`; no se reinstaló ni se recreó.
+  El relanzado automático usa ahora un proceso hijo del Python del entorno, en
+  vez de `os.execv`, que en Windows perdía el contexto del `venv`.
+- La transcripción se recuperó desde el mismo archivo, sin borrar ni duplicar
+  el audio. El proceso que escucha en 9765 cuelga ahora de
+  `venv/Scripts/python.exe` y el audio queda en estado `listo`, sin error.
+- Se retiraron del prompt todos los nombres, lugares y fechas de los ejemplos:
+  el caso de Huelva estaba contaminando audios posteriores. Un bloque de `es_yo`
+  se descarta siempre y un nombre exacto como Diego prevalece sobre un id que el
+  modelo haya asociado mal.
+- Una enumeración explícita como «quedamos Susi, Diego, Coba y yo» limita los
+  enlaces de la quedada a esas personas: Miguel puede permanecer en el relato
+  del viaje futuro, pero no recibe una quedada a la que no asistió. Los lugares
+  se quedan en el texto y el canal se normaliza a *En persona*.
+- Qwen separa ahora propuesta, auditoría, inventario de hechos y redacción. La
+  prueba real exige conservar tren, acompañantes, día 13, coche, nuevo trabajo,
+  salida a las tres, viaje con la tía, vacaciones y plaza antes de aceptar el
+  borrador. Las referencias se resolvieron como domingo 2, lunes 3 y jueves 13
+  de agosto.
+- El borrador final propone *El nuevo trabajo* para Susi, *El viaje con su tía*
+  para Coba y *Las vacaciones* para Diego. Sigue sin confirmar:
+  `audio_registro` permanece vacío y ninguna ficha ha cambiado.
+
+### 2026-08-03 — Captura abierta y sincronizada con el buscador
+
+- Los cuatro apartados de cada borrador manual y automático nacen desplegados;
+  siguen pudiéndose plegar individualmente después. Ya no aparece una ficha
+  nueva convertida en cuatro bandas cerradas sin campos visibles.
+- `.bloque-plegar` deja de heredar el centrado general de los botones. Etiquetas,
+  campos y texto de la captura quedan alineados a la izquierda, también en
+  *Quedada*, que no lleva contador.
+- Al escribir sobre una persona elegida o pulsar la × del buscador, el selector
+  comunica qué elección se ha limpiado y desaparece su bloque correspondiente.
+  Es una retirada local del borrador: no borra ni modifica la ficha real.
+- Recursos actualizados a `?v=20260803f`.
+
+### 2026-08-03 — Estado visible al volver a analizar
+
+- *Volver a analizar* deja de parecer una acción sin respuesta: en el mismo
+  clic cambia a *Volviendo a analizar…*, se desactiva y muestra junto al botón
+  que Whisper está transcribiendo el audio de nuevo.
+- El estado del audio activo también se actualiza de inmediato y el aviso usa
+  `aria-live`. Los fragmentos posteriores mantienen *Procesando audio…* hasta
+  que termina; el primero espera 900 ms para no borrar la respuesta visual en
+  el mismo instante. Si la petición falla, el botón se recupera y aparece el error.
+- Recursos actualizados a `?v=20260803g`.
+
+### 2026-08-05 — Límite y recuperación del análisis de voz
+
+- El audio 9 demostró un fallo distinto de la subida y la transcripción: Qwen
+  siguió razonando durante diez minutos, superó decenas de miles de tokens y
+  terminó por tiempo agotado. El archivo y sus 260 caracteres transcritos no se
+  perdieron; la fila quedó en `error_analisis`.
+- Cada llamada a Qwen limita ahora su salida: 4096 tokens cuando razona y 8192
+  cuando redacta directamente, con una espera máxima de tres minutos.
+- Si una llamada con razonamiento devuelve una respuesta vacía, incompleta o
+  inválida, se repite una sola vez sin razonamiento largo. Si también falla, la
+  cola conserva el audio y la transcripción y muestra el error como antes.
+- Una prueba aislada verificó la sintaxis, los dos límites, el plazo y el cambio
+  automático al segundo intento. Una llamada real a `qwen3:14b`, con contenido
+  sintético y sin datos personales, confirmó que Ollama acepta el nuevo límite
+  y devuelve el JSON esperado.
+
+### 2026-08-05 — Ejecutable autocontenido de Windows
+
+- `Relaciones.spec` genera un único ejecutable con Python 3.12, FastAPI,
+  pywebview, faster-whisper, plantillas y recursos locales. Excluye Torch y
+  TensorFlow, que la app no usa para transcribir, y deja fuera los modelos.
+- `construir.ps1` localiza un Python válido, prepara dependencias aisladas en
+  `.paquete-deps/`, construye en `dist/` y copia el resultado junto a `datos.db`.
+  `requisitos-paquete.txt` fija las versiones necesarias para repetirlo.
+- El primer `Relaciones.exe` ocupa 167,9 MB. Se probó desde
+  `build/prueba-paquete`, con modelos desactivados y una base nueva aislada:
+  arrancó sin depender del Python desinstalado, creó sus carpetas, respondió
+  `200 / vale` y liberó correctamente el puerto 9765 al cerrar. La copia final
+  sirvió además la portada, Notas, el manifiesto móvil y `estatico/app.js`, todos
+  con estado 200; las dos bases vacías y copias de prueba se retiraron después.
+- El ejecutable debe quedarse junto a la base y los audios. Ollama,
+  `qwen3:14b` y el modelo `large-v3` siguen en sus almacenes locales para no
+  convertir cada versión de la aplicación en un archivo de varios gigabytes.
+
+### 2026-08-05 — Cambiar persona o descartar un bloque del audio
+
+- Todos los bloques automáticos muestran ahora *Cambiar persona*, también
+  cuando Qwen había asignado una persona sin dudas. La ruta `resolver` existente
+  conserva el contenido y sólo cambia la ficha a la que se aplicaría.
+- *Descartar bloque* retira la propuesta completa sin guardar pendientes,
+  preguntas, datos ni quedadas. No borra la persona ni toca su ficha. Si era el
+  último bloque por decidir, el audio queda en estado `revisado`.
+- La eliminación pide confirmación mediante el diálogo propio. Como el proceso
+  del audio llega en un fragmento HTML, `iniciarConfirmacion()` registra también
+  esos formularios dinámicos antes de que el envío por `fetch` los intercepte.
+- En móvil, los dos formularios de acción y sus botones ocupan todo el ancho.
+  Recursos actualizados a `?v=20260805b`.
+- Las rutas se probaron con una base aislada: cambiar de Ana a Bea conservó
+  *Llamarla* y *El viaje*; eliminar uno de dos bloques mantuvo el audio `listo`
+  y eliminar el último lo dejó `revisado`, sin filas nuevas en `hecho`, `hilo`,
+  `nota` ni `audio_registro`.
+- La prueba en navegador confirmó además que Cancelar conserva el bloque, que
+  el diálogo nombra la ficha afectada y que la eliminación refresca el estado.
+  A 390 px, ambos formularios quedan apilados y sus botones ocupan todo el
+  ancho; no hubo errores de JavaScript. El servidor y la base ficticios se
+  retiraron al terminar.
+- El servidor ya dejaba correctamente los audios 9 y 10 en `revisado`, pero la
+  opción del selector conservaba en el DOM el texto anterior *Listo para
+  revisar*. `cargarProceso()` actualiza ahora ese texto y retira del selector la
+  opción cuando el fragmento confirma que ya está revisado. La ficha activa se
+  queda visible con *Revisado* para que la acción tenga respuesta inmediata.
+- El verbo visible pasó de *Eliminar* a *Descartar*: el botón, el texto del
+  diálogo y su acción final dicen *Descartar bloque* / *Descartar*, sin confundir
+  la propuesta con datos ya guardados.
+
+### 2026-08-05 — La ficha conserva la posición en todas sus acciones
+
+- Guardar, añadir, completar o eliminar dentro de un bloque ya no salta a su
+  ancla al volver: con JavaScript se restaura la posición exacta anterior y el
+  ancla queda sólo como respaldo sin JavaScript.
+- La posición se guarda por pantalla, no en una única entrada compartida. Así,
+  salir de la ficha para editar una quedada y regresar tampoco pierde el punto
+  de lectura aunque la pantalla intermedia guarde su propia posición.
+- Los enlaces con un `volver` hacia la ficha conservan ahora su posición antes
+  de salir. Si el regreso incluye un ancla, se retira en el `<head>` sólo cuando
+  existe una posición exacta pendiente, antes de que el navegador salte a ella.
+- La prueba en navegador detectó además el reajuste local al mostrar controles:
+  pulsar *Editar* movía la ficha unos píxeles aunque no hubiera recarga. Editar,
+  plegar y abrir la edición individual de una relación reafirman ahora la misma
+  posición después del cambio de altura; `.ficha` desactiva además el anclaje
+  automático del navegador, que era quien la recolocaba. La posición se reafirma
+  durante dos pintados consecutivos para cubrir el ajuste de foco del control.
+  Recursos actualizados a `?v=20260805g`.

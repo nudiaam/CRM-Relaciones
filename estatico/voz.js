@@ -236,6 +236,38 @@
     var sonido = new Audio();
     var activo = null;
 
+    function descripcionDe(boton) {
+      var fila = boton.closest('.audio-fila');
+      var fecha = fila ? fila.querySelector('.audio-fecha') : null;
+      if (!fecha) {
+        fecha = document.querySelector('[data-audio-elegido] [data-audio-fecha]');
+      }
+      return fecha && fecha.textContent.trim() ? fecha.textContent.trim() : 'Relaciones';
+    }
+
+    function actualizarTarjeta() {
+      if (!activo || !('mediaSession' in navigator) || !window.MediaMetadata) return;
+      var noche = document.documentElement.dataset.modo === 'noche';
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: 'Nota de voz',
+        artist: descripcionDe(activo),
+        album: 'Relaciones',
+        artwork: [{
+          src: noche
+            ? '/estatico/icono/audio-oscuro-512.png?v=20260803g'
+            : '/estatico/icono/icono-512.png?v=20260803g',
+          sizes: '512x512',
+          type: 'image/png'
+        }]
+      });
+    }
+
+    if ('MutationObserver' in window) {
+      new MutationObserver(function () { actualizarTarjeta(); }).observe(
+        document.documentElement, { attributes: true, attributeFilter: ['data-modo'] }
+      );
+    }
+
     function soltar() {
       if (activo) { activo.textContent = 'Escuchar'; activo = null; }
     }
@@ -248,9 +280,11 @@
         if (activo === boton) { sonido.pause(); soltar(); return; }
         soltar();
         sonido.src = fuente;
+        activo = boton;
+        actualizarTarjeta();
         sonido.play().then(function () {
-          activo = boton; boton.textContent = 'Parar';
-        }).catch(function () { boton.textContent = 'No se pudo'; });
+          boton.textContent = 'Parar';
+        }).catch(function () { activo = null; boton.textContent = 'No se pudo'; });
       });
     });
   }

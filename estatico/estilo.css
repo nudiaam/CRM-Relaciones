@@ -1558,7 +1558,7 @@ details > summary::-webkit-details-marker {
   background: var(--papel);
 }
 
-/* Apuntar */
+/* Notas y edición de quedadas */
 
 .nota-formulario {
   max-width: 880px;
@@ -3744,6 +3744,7 @@ html[data-modo="noche"] .accion-eliminar:hover {
    se hereda es la retícula: aquí se lee entero y no se trunca nunca. */
 
 .ficha {
+  overflow-anchor: none;
   border: var(--filete);
 }
 
@@ -3764,6 +3765,7 @@ html[data-modo="noche"] .accion-eliminar:hover {
   display: flex;
   flex: 1 1 auto;
   align-items: center;
+  justify-content: flex-start;
   gap: 12px;
   min-height: 40px;
   margin: 0;
@@ -4266,7 +4268,7 @@ html[data-modo="noche"] .accion-eliminar:hover {
   bottom: calc(56px + env(safe-area-inset-bottom));
 }
 
-/* El pie de Apuntar se queda pegado abajo: sin esto, la barra de gestos de
+/* El pie del editor de quedadas se queda pegado abajo: sin esto, la barra de gestos de
    Android se come los botones. */
 .nota-acciones {
   padding-bottom: calc(16px + env(safe-area-inset-bottom));
@@ -4879,7 +4881,7 @@ html[data-modo="noche"] .confirmar::backdrop {
   }
 }
 
-/* La lista de audios dentro de Apuntar. */
+/* La lista de audios dentro de Notas. */
 
 .entradilla-enlace {
   margin: 8px 0 0;
@@ -4933,4 +4935,602 @@ html[data-modo="noche"] .confirmar::backdrop {
 
 .audio-oir {
   flex: none;
+}
+
+/* 2026-08-03 · Notas: la grabadora, el audio activo y la captura por persona.
+   Los bloques reutilizan directamente la estructura de `.ficha`; aquí sólo
+   se define su colocación y los controles propios de esta pantalla. */
+
+.pagina-notas .pagina-cabecera,
+.notas-grabadora,
+.notas-audio-activo,
+.notas-captura,
+.notas-archivo {
+  width: min(100%, 880px);
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.notas-grabadora {
+  margin-top: 24px;
+}
+
+.pagina-notas .notas-grabadora .voz {
+  position: static;
+  right: auto;
+  bottom: auto;
+  z-index: auto;
+  width: 100%;
+}
+
+.pagina-notas .notas-grabadora .voz-lanzar {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 56px;
+}
+
+.pagina-notas .notas-grabadora .voz-panel {
+  position: static;
+  width: 100%;
+}
+
+.notas-audio-activo {
+  margin-top: 24px;
+}
+
+.audio-activo-elegido {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.audio-activo-elegido .audio-datos {
+  flex: 1;
+}
+
+.audio-selector-detalle {
+  margin-top: 16px;
+}
+
+.audio-selector-opciones {
+  margin-top: -1px;
+  border: var(--filete);
+}
+
+.audio-selector-opciones > button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: var(--filete-suave);
+  text-align: left;
+  text-transform: none;
+}
+
+.audio-selector-opciones > button:last-child {
+  border-bottom: 0;
+}
+
+.audio-selector-opciones > button[aria-pressed="true"] {
+  color: var(--inverso-texto);
+  background: var(--inverso-fondo);
+}
+
+.audio-selector-opciones small {
+  color: var(--secundario);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 16px;
+  text-transform: uppercase;
+}
+
+.audio-selector-opciones > button[aria-pressed="true"] small {
+  color: inherit;
+}
+
+@media (hover: hover) {
+  .audio-selector-opciones > button:hover {
+    color: var(--inverso-texto);
+    background: var(--inverso-fondo);
+  }
+
+  .audio-selector-opciones > button:hover small {
+    color: inherit;
+  }
+}
+
+.notas-ayuda {
+  margin: 16px 0 0;
+  color: var(--secundario);
+  font-family: var(--lectura);
+  font-size: 15px;
+  line-height: 22px;
+  font-style: italic;
+}
+
+.audio-proceso {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: var(--filete);
+}
+
+.audio-proceso-estado {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+  text-transform: uppercase;
+}
+
+.audio-proceso-estado p {
+  margin: 0;
+}
+
+.audio-proceso-punto {
+  width: 8px;
+  height: 8px;
+}
+
+.audio-proceso-punto::before {
+  display: block;
+  width: 8px;
+  height: 8px;
+  background: var(--tinta);
+  content: "";
+}
+
+.audio-transcripcion {
+  margin-top: 16px;
+  border: var(--filete);
+}
+
+.audio-transcripcion > summary {
+  display: flex;
+  justify-content: space-between;
+  min-height: 40px;
+  padding: 11px 12px;
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+  text-transform: uppercase;
+}
+
+.audio-transcripcion > summary::-webkit-details-marker {
+  display: none;
+}
+
+.audio-transcripcion > summary span:last-child {
+  color: var(--secundario);
+}
+
+.audio-transcripcion-cuerpo {
+  padding: 16px;
+  border-top: var(--filete);
+}
+
+.audio-transcripcion textarea {
+  min-height: 176px;
+  max-height: 55vh;
+  resize: vertical;
+}
+
+.audio-transcripcion textarea[readonly] {
+  color: var(--tinta);
+  background: transparent;
+}
+
+.audio-proceso-acciones,
+.audio-volver-form {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.audio-volver-form {
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.audio-volver-form p {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+  text-transform: uppercase;
+}
+
+.audio-proceso-aviso {
+  max-width: 640px;
+  margin: 16px 0 0;
+  font-family: var(--lectura);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.audio-borrador {
+  margin-top: 40px;
+}
+
+.audio-borrador-cabecera {
+  margin-bottom: 24px;
+}
+
+.audio-borrador-bloques {
+  gap: 32px;
+}
+
+.audio-bloque {
+  width: 100%;
+}
+
+.audio-identidad {
+  gap: 16px;
+}
+
+.audio-persona-dudosa {
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--alarma);
+  color: var(--alarma);
+  background: transparent;
+  font-family: var(--lectura);
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 400;
+  text-align: left;
+  text-transform: none;
+}
+
+.audio-persona-confirmar {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--alarma);
+  color: var(--alarma);
+  background: transparent;
+  font-size: 18px;
+}
+
+.audio-cambiar-persona {
+  margin-top: 16px;
+}
+
+.audio-personas-opciones {
+  max-height: 320px;
+  margin-top: -1px;
+  overflow-y: auto;
+  border: var(--filete);
+  scrollbar-color: var(--tinta) transparent;
+  scrollbar-width: thin;
+}
+
+.audio-personas-opciones form + form {
+  border-top: var(--filete-suave);
+}
+
+.audio-personas-opciones button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 0;
+  text-align: left;
+  text-transform: none;
+}
+
+.audio-personas-opciones small {
+  color: var(--secundario);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 16px;
+  text-transform: uppercase;
+}
+
+.audio-validar-todo {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: var(--filete);
+}
+
+.audio-validar-todo p {
+  flex: 1;
+  margin: 0;
+  color: var(--secundario);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.audio-sin-asignar {
+  max-width: 640px;
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: var(--filete);
+}
+
+.audio-sin-asignar ul {
+  margin: 12px 0 0;
+  padding-left: 22px;
+  font-family: var(--lectura);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+@media (hover: hover) {
+  .audio-transcripcion > summary:hover,
+  .audio-personas-opciones button:hover {
+    color: var(--inverso-texto);
+    background: var(--inverso-fondo);
+  }
+
+  .audio-personas-opciones button:hover small {
+    color: inherit;
+  }
+}
+
+.notas-captura {
+  margin-top: 64px;
+}
+
+.notas-seccion-cabecera {
+  margin-bottom: 24px;
+  padding-top: 16px;
+  border-top: var(--filete);
+}
+
+.notas-seccion-cabecera h2 {
+  margin: 4px 0 8px;
+  font-family: var(--lectura);
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 400;
+}
+
+.notas-seccion-cabecera > p:last-child {
+  max-width: 640px;
+  margin: 0;
+  font-family: var(--lectura);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.captura-selector {
+  position: relative;
+  z-index: 6;
+  width: min(100%, 640px);
+}
+
+.captura-resultados small {
+  color: var(--secundario);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 16px;
+  text-transform: uppercase;
+}
+
+.captura-resultados > button[aria-selected="true"] small {
+  color: inherit;
+}
+
+@media (hover: hover) {
+  .captura-resultados > button:hover small {
+    color: inherit;
+  }
+}
+
+.captura-aviso {
+  min-height: 24px;
+  margin: 8px 0 0;
+  color: var(--secundario);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.captura-aviso:empty,
+.captura-bloques:empty {
+  display: none;
+}
+
+.captura-bloques {
+  display: grid;
+  gap: 48px;
+  margin-top: 24px;
+}
+
+.captura-persona,
+.captura-persona .bloque-cuerpo {
+  text-align: left;
+}
+
+.captura-identidad .identidad {
+  position: relative;
+  padding-right: 176px;
+}
+
+.captura-persona-quitar {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+}
+
+.captura-descartar-ayuda {
+  max-width: 640px;
+  margin: 12px 0 0;
+  color: var(--secundario);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 16px;
+}
+
+.captura-fila {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+}
+
+.captura-fila + .captura-fila {
+  margin-top: 8px;
+}
+
+.captura-fila > label {
+  min-width: 0;
+}
+
+.captura-fila > button {
+  min-height: 40px;
+  margin-left: -1px;
+}
+
+.captura-anadir {
+  margin-top: 12px;
+}
+
+.captura-quedada-textos {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.captura-quedada textarea {
+  min-height: 144px;
+}
+
+.captura-acciones {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  padding: 16px;
+  border-top: var(--filete);
+}
+
+.captura-acciones p {
+  flex: 1;
+  margin: 0;
+  color: var(--secundario);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.captura-acciones > form {
+  margin: 0;
+}
+
+.notas-archivo {
+  margin-top: 64px;
+}
+
+.notas-archivo > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.notas-archivo > summary::-webkit-details-marker {
+  display: none;
+}
+
+.notas-archivo-signo {
+  display: inline-block;
+  min-width: 12px;
+  margin-left: 8px;
+  color: inherit;
+  text-align: center;
+}
+
+.notas-archivo[open] .notas-archivo-signo {
+  transform: rotate(45deg);
+}
+
+.notas-archivo-contenido {
+  border-top: var(--filete);
+}
+
+.audios-paginacion {
+  margin-top: -1px;
+}
+
+.notas-archivo > summary:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--tinta);
+  outline-offset: -2px;
+}
+
+@media (hover: hover) {
+  .notas-archivo > summary:hover {
+    color: var(--inverso-texto);
+    background: var(--inverso-fondo);
+  }
+}
+
+@media (max-width: 640px) {
+  .notas-grabadora,
+  .notas-audio-activo {
+    margin-top: 16px;
+  }
+
+  .notas-captura,
+  .notas-archivo {
+    margin-top: 48px;
+  }
+
+  .audio-activo-elegido,
+  .captura-acciones,
+  .audio-validar-todo,
+  .audio-volver-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .captura-identidad .identidad {
+    flex-wrap: wrap;
+    padding-right: 0;
+  }
+
+  .captura-persona-quitar {
+    position: static;
+    flex: 1 0 100%;
+    width: 100%;
+    margin-top: 16px;
+    transform: none;
+  }
+
+  .captura-fila {
+    grid-template-columns: 1fr;
+  }
+
+  .captura-fila > button {
+    margin-top: -1px;
+    margin-left: 0;
+  }
+
+  .captura-acciones > button,
+  .captura-acciones > form,
+  .captura-acciones > form > button {
+    width: 100%;
+  }
+
+  .audio-validar-todo > button,
+  .audio-proceso-acciones > button,
+  .audio-volver-form > button {
+    width: 100%;
+  }
 }

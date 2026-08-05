@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% block titulo %}Notas · Relaciones{% endblock %}
+{% block clase_body %}pagina-nota pagina-notas{% endblock %}
+
+{% macro cabecera_captura(etiqueta, campo=None) %}
+<header class="bloque-cabecera">
+  <button class="bloque-plegar" type="button" data-captura-plegar
+          aria-expanded="true">
+    <span class="bloque-etiqueta">{{ etiqueta }}</span>
+    {% if campo %}<span class="bloque-cuenta" data-captura-cuenta="{{ campo }}">0</span>{% endif %}
+    <span class="bloque-signo" aria-hidden="true">−</span>
+  </button>
+</header>
+{% endmacro %}
+
+{% macro fila_repetible(nombre, campo, tipo, placeholder) %}
+<div class="captura-fila" data-captura-fila>
+  <label>
+    <span class="solo-lectores">{{ nombre }}</span>
+    <input type="text" name="{{ campo }}" data-campo="{{ tipo }}"
+           autocomplete="off" placeholder="{{ placeholder }}">
+  </label>
+  <button class="discreto accion-eliminar" type="button" data-captura-quitar hidden>Quitar</button>
+</div>
+{% endmacro %}
+
+{% block contenido %}
+<header class="pagina-cabecera pagina-cabecera-simple">
+  <div>
+    <p class="sobrelinea">NOTAS</p>
+    <h1 class="titulo">Notas</h1>
+    <p class="entradilla">Graba una idea o prepara a mano lo que quieres guardar de cada persona.</p>
+  </div>
+</header>
+
+<section class="notas-grabadora" aria-label="Grabar una nota de voz">
+  {% include "_grabadora.html" %}
+</section>
+
+<section class="ficha notas-audio-activo" id="audio-activo" data-audio-selector
+         data-audio-inicial="{{ audio_inicial or '' }}">
+  <section class="bloque">
+    <header class="bloque-cabecera">
+      <div class="bloque-plegar">
+        <span class="bloque-etiqueta">Audio activo</span>
+        <span class="bloque-cuenta" data-audio-estado>Sin audio</span>
+      </div>
+    </header>
+    <div class="bloque-cuerpo">
+      <div class="audio-activo-vacio" data-audio-vacio>
+        <p class="vacio">La captura manual puede usarse sin elegir una grabación.</p>
+      </div>
+      <div class="audio-activo-elegido" data-audio-elegido hidden>
+        <div class="audio-datos">
+          <p class="audio-fecha" data-audio-fecha></p>
+          <p class="audio-estado" data-audio-situacion></p>
+        </div>
+        <button class="audio-oir discreto" type="button" data-audio-oir data-oir="">Escuchar</button>
+      </div>
+
+      {% if audios_pendientes %}
+      <details class="anadir audio-selector-detalle">
+        <summary>Elegir audio</summary>
+        <div class="audio-selector-opciones">
+          <button type="button" data-audio-opcion data-audio-id=""
+                  data-audio-fecha-iso="{{ fecha }}" data-audio-situacion="Sin audio">
+            <span>Trabajar sin audio</span>
+            <small>Captura manual</small>
+          </button>
+          {% for a in audios_pendientes %}
+          <button type="button" data-audio-opcion data-audio-id="{{ a.id }}"
+                  data-audio-fecha-iso="{{ a.grabado[:10] }}"
+                  data-audio-fecha="{{ a.grabado|fecha|capitalize }} · {{ a.grabado[11:16] }}"
+                  data-audio-situacion="{{ {
+                    'pendiente': 'Esperando transcripción',
+                    'transcribiendo': 'Transcribiendo',
+                    'analisis_pendiente': 'Esperando análisis',
+                    'analizando': 'Preparando el borrador',
+                    'listo': 'Listo para revisar',
+                    'error_transcripcion': 'No se pudo transcribir',
+                    'error_analisis': 'No se pudo preparar el borrador'
+                  }.get(a.estado, a.estado) }}"
+                  data-audio-url="/audio/{{ a.id }}">
+            <span>{{ a.grabado|fecha|capitalize }} · {{ a.grabado[11:16] }}</span>
+            <small>{{ {
+              'pendiente': 'Esperando transcripción',
+              'transcribiendo': 'Transcribiendo',
+              'analisis_pendiente': 'Esperando análisis',
+              'analizando': 'Preparando el borrador',
+              'listo': 'Listo para revisar',
+              'error_transcripcion': 'No se pudo transcribir',
+              'error_analisis': 'No se pudo preparar el borrador'
+            }.get(a.estado, a.estado) }}</small>
+          </button>
+          {% endfor %}
+        </div>
+      </details>
+      {% else %}
+      <p class="notas-ayuda">Cuando grabes un audio aparecerá aquí para poder seleccionarlo.</p>
+      {% endif %}
+      <div data-audio-proceso></div>
+    </div>
+  </section>
+</section>
+
+<section class="notas-captura" id="captura" data-captura
+         data-persona-inicial="{{ persona_inicial or '' }}">
+  <header class="notas-seccion-cabecera">
+    <p class="sobrelinea">CAPTURA MANUAL</p>
+    <h2>Una persona cada vez</h2>
+    <p>Elige a alguien y añade sólo lo que quieras guardar en su ficha.</p>
+  </header>
+
+  {% if personas %}
+  <div class="selector-persona captura-selector" data-selector-persona>
+    <div class="selector-desplegable">
+      <div class="buscar-con-limpiar">
+        <input type="search" data-selector-buscar autocomplete="off"
+               placeholder="Un nombre o apodo" role="combobox"
+               aria-expanded="false" aria-autocomplete="list">
+        <button type="button" data-selector-limpiar aria-label="Borrar búsqueda" hidden>×</button>
+      </div>
+      <input type="hidden" data-selector-valor>
+      <div class="selector-resultados captura-resultados" role="listbox" hidden>
+        {% for p in personas %}
+        <button type="button" role="option" data-id="{{ p.id }}"
+                data-circulo="{{ p.circulo or '' }}" aria-selected="false">
+          <span>{{ p.nombre_visible }}</span>
+          {% if p.circulo %}<small>{{ p.circulo }}</small>{% endif %}
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+    <p class="selector-eleccion" data-selector-eleccion>Elige una persona existente.</p>
+  </div>
+  <p class="captura-aviso" data-captura-aviso aria-live="polite"></p>
+  <div class="captura-bloques" data-captura-bloques></div>
+  {% else %}
+  <p class="vacio">Aún no hay ninguna persona que puedas elegir.</p>
+  {% endif %}
+</section>
+
+<template data-captura-modelo>
+  <form class="ficha captura-persona" method="post" data-captura-form>
+    <input type="hidden" name="volver" value="/nota#captura">
+    <input type="hidden" name="audio_id" value="" data-captura-audio>
+
+    <section class="bloque bloque-identidad captura-identidad">
+      <p class="ficha-etiqueta">PERSONA / <span data-persona-numero></span></p>
+      <div class="identidad">
+        <div class="foto-perfil foto-vacia">
+          <span aria-hidden="true" data-persona-inicial></span>
+        </div>
+        <div class="identidad-texto">
+          <h2 class="titulo" data-persona-nombre></h2>
+          <span class="donde" data-persona-circulo></span>
+        </div>
+        <button class="discreto accion-eliminar captura-persona-quitar" type="button"
+                data-captura-descartar>Descartar borrador</button>
+      </div>
+      <p class="captura-descartar-ayuda">Sólo retira este borrador. La persona y su ficha no cambian.</p>
+    </section>
+
+    <section class="bloque" data-captura-repetible="pendientes">
+      {{ cabecera_captura("Queda pendiente", "pendientes") }}
+      <div class="bloque-cuerpo">
+        <div class="captura-lista" data-captura-lista>
+          {{ fila_repetible("Pendiente", "pendientes", "pendiente", "Pasarle el contacto del estudio…") }}
+        </div>
+        <button class="discreto captura-anadir" type="button" data-captura-anadir>Añadir otro</button>
+      </div>
+    </section>
+
+    <section class="bloque" data-captura-repetible="preguntas">
+      {{ cabecera_captura("Preguntar por", "preguntas") }}
+      <div class="bloque-cuerpo">
+        <div class="captura-lista" data-captura-lista>
+          {{ fila_repetible("Pregunta", "preguntas", "preguntar", "Se examina en octubre…") }}
+        </div>
+        <button class="discreto captura-anadir" type="button" data-captura-anadir>Añadir otro</button>
+      </div>
+    </section>
+
+    <section class="bloque captura-quedada">
+      {{ cabecera_captura("Quedada") }}
+      <div class="bloque-cuerpo">
+        <div class="campo-fecha" data-fecha data-fecha-inicial="{{ fecha }}"
+             data-fecha-nombre="quedada_fecha" hidden>
+          <span class="rotulo-grupo">Día</span>
+          <div class="fecha-atajos" role="group" data-fecha-atajos></div>
+          <p class="fecha-elegida" aria-live="polite" data-fecha-elegida></p>
+          <button class="fecha-abrir" type="button" aria-expanded="false" data-fecha-abrir>
+            <span data-fecha-signo aria-hidden="true">+</span>
+            <span>Otro día</span>
+          </button>
+          <div class="fecha-calendario" data-fecha-calendario hidden>
+            <div class="fecha-mes">
+              <button type="button" data-fecha-antes aria-label="Mes anterior">‹</button>
+              <span aria-live="polite" data-fecha-titulo></span>
+              <button type="button" data-fecha-despues aria-label="Mes siguiente">›</button>
+            </div>
+            <div class="fecha-semana" aria-hidden="true">
+              <span>L</span><span>M</span><span>X</span><span>J</span>
+              <span>V</span><span>S</span><span>D</span>
+            </div>
+            <div class="fecha-dias" role="grid" data-fecha-dias></div>
+          </div>
+        </div>
+        <div class="captura-quedada-textos">
+          <label>Por dónde
+            <input type="text" name="quedada_canal" data-campo="quedada-canal"
+                   placeholder="Llamada, mensaje, en persona…">
+          </label>
+          <label>Resumen para las fichas pequeñas
+            <input type="text" name="quedada_resumen" data-campo="quedada-resumen"
+                   placeholder="Una línea breve y clara">
+          </label>
+          <label>Texto completo para su ficha
+            <textarea name="quedada_texto" data-campo="quedada-texto"
+                      placeholder="Cuenta lo ocurrido con tus palabras, no como una transcripción literal."></textarea>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="bloque" data-captura-repetible="datos">
+      {{ cabecera_captura("Datos", "datos") }}
+      <div class="bloque-cuerpo">
+        <div class="captura-lista" data-captura-lista>
+          {{ fila_repetible("Dato", "datos", "dato", "Odia el cilantro, su hermana se llama Ana…") }}
+        </div>
+        <button class="discreto captura-anadir" type="button" data-captura-anadir>Añadir otro</button>
+      </div>
+    </section>
+
+    <div class="captura-acciones">
+      <p data-captura-estado aria-live="polite"></p>
+      <button class="boton-solido" type="submit">Confirmar esta persona</button>
+    </div>
+  </form>
+</template>
+
+<details class="panel notas-archivo" id="audios"{% if archivo_abierto %} open{% endif %}>
+  <summary class="panel-cabecera">
+    <h2>Archivo de audios</h2>
+    <span><span data-audios-total>{{ audios_total }}</span> <span class="notas-archivo-signo" aria-hidden="true">+</span></span>
+  </summary>
+  <div class="notas-archivo-contenido">
+    {% include "_audios_lista.html" %}
+    {% include "_audios_paginas.html" %}
+  </div>
+</details>
+{% endblock %}

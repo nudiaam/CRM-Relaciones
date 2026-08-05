@@ -263,7 +263,7 @@
       <section class="archivo-ultima">
         <header><span>ÚLTIMA QUEDADA</span></header>
         {% if persona_resumen.ultima_quedada %}
-        <p>{{ persona_resumen.ultima_quedada.texto }}</p>
+        <p>{{ persona_resumen.ultima_quedada.resumen or persona_resumen.ultima_quedada.texto }}</p>
         <span class="dato">{{ persona_resumen.ultima_quedada.fecha|corta }}{% if persona_resumen.ultima_quedada.canal %} · {{ persona_resumen.ultima_quedada.canal }}{% endif %}</span>
         {% else %}
         <p class="vacio">Todavía no habéis coincidido, o no lo has apuntado.</p>
@@ -287,7 +287,7 @@
       </section>
     </div>
     <div class="archivo-acciones">
-      <a class="boton" href="/nota?volver={{ volver_archivo|urlencode }}&amp;persona={{ persona_resumen.id }}">Apuntar algo</a>
+      <a class="boton" href="/nota?volver={{ volver_archivo|urlencode }}&amp;persona={{ persona_resumen.id }}">Añadir nota</a>
       <a class="boton boton-solido" href="/persona/{{ persona_resumen.id }}?volver={{ volver_archivo|urlencode }}">Abrir ficha</a>
     </div>
     {% else %}

@@ -1,0 +1,215 @@
+{% set a = audio_proceso %}
+<div class="audio-proceso" data-audio-proceso-contenido data-audio-id="{{ a.id }}"
+     data-audio-trabajando="{{ 'si' if a.trabajando else 'no' }}"
+     data-audio-estado-codigo="{{ a.estado }}">
+  <div class="audio-proceso-estado" aria-live="polite">
+    <span class="audio-proceso-punto" aria-hidden="true"></span>
+    <p>{{ a.estado_visible }}</p>
+  </div>
+
+  {% if a.transcripcion %}
+  <details class="audio-transcripcion">
+    <summary>
+      <span>Transcripción</span>
+      <span>{{ 'Texto corregido' if a.transcripcion_editada else 'Whisper' }}</span>
+    </summary>
+    <div class="audio-transcripcion-cuerpo">
+      <form method="post" action="/audio/{{ a.id }}/enviar-a-qwen"
+            data-audio-editar-form data-proceso-form>
+        <input type="hidden" name="volver" value="/nota?audio={{ a.id }}#audio-activo">
+        <label class="solo-lectores" for="transcripcion-{{ a.id }}">Transcripción completa</label>
+        <textarea id="transcripcion-{{ a.id }}" name="transcripcion"
+                  data-audio-transcripcion readonly>{{ a.transcripcion }}</textarea>
+        <div class="audio-proceso-acciones">
+          <button class="discreto" type="submit" data-audio-editar{% if a.trabajando %} disabled{% endif %}>{{ 'Procesando' if a.trabajando else 'Editar' }}</button>
+        </div>
+      </form>
+    </div>
+  </details>
+  {% endif %}
+
+  {% if a.error %}
+  <p class="audio-proceso-aviso">No ha terminado bien. Puedes volver a analizar el audio o editar la transcripción si ya existe.</p>
+  {% endif %}
+
+  {% if a.bloques %}
+  <section class="audio-borrador" aria-labelledby="borrador-{{ a.id }}">
+    <header class="notas-seccion-cabecera audio-borrador-cabecera">
+      <p class="sobrelinea">BORRADOR</p>
+      <h2 id="borrador-{{ a.id }}">Revisa antes de guardar</h2>
+      <p>Sólo se incorpora a una ficha cuando lo confirmas.</p>
+    </header>
+
+    <div class="captura-bloques audio-borrador-bloques" data-ia-bloques>
+      {% for bloque in a.bloques %}
+      {% set formulario = 'ia-' ~ a.id ~ '-' ~ bloque.clave %}
+      <article class="ficha captura-persona audio-bloque" data-ia-bloque>
+        <section class="bloque bloque-identidad captura-identidad">
+          <p class="ficha-etiqueta">PERSONA / BORRADOR</p>
+          <div class="identidad audio-identidad">
+            <div class="foto-perfil foto-vacia">
+              <span aria-hidden="true">{{ ((bloque.persona.nombre_visible if bloque.persona else bloque.mencion) or '?')[:1]|upper }}</span>
+            </div>
+            <div class="identidad-texto">
+              {% if bloque.persona_dudosa or not bloque.persona %}
+              <button class="audio-persona-dudosa" type="button" data-ia-cambiar>
+                {{ bloque.persona.nombre_visible if bloque.persona else (bloque.mencion or 'Persona por identificar') }}
+              </button>
+              <span class="donde">Falta confirmar</span>
+              {% else %}
+              <h3 class="titulo">{{ bloque.persona.nombre_visible }}</h3>
+              {% if bloque.persona.circulo %}<span class="donde">{{ bloque.persona.circulo }}</span>{% endif %}
+              {% endif %}
+            </div>
+            {% if bloque.persona_dudosa and bloque.persona %}
+            <form method="post" action="/audio/{{ a.id }}/persona/{{ bloque.clave }}/resolver"
+                  data-proceso-form>
+              <input type="hidden" name="persona_id" value="{{ bloque.persona.id }}">
+              <input type="hidden" name="volver" value="/nota?audio={{ a.id }}#audio-activo">
+              <button class="audio-persona-confirmar" type="submit"
+                      aria-label="Confirmar que es {{ bloque.persona.nombre_visible }}">✓</button>
+            </form>
+            {% endif %}
+          </div>
+
+          <details class="anadir audio-cambiar-persona" data-ia-selector>
+            <summary>{{ 'Elegir la persona correcta' if bloque.persona_dudosa or not bloque.persona else 'Cambiar persona' }}</summary>
+            <div class="buscar-con-limpiar">
+              <input type="search" data-ia-buscar-persona autocomplete="off"
+                     placeholder="Un nombre o apodo">
+            </div>
+            <div class="audio-personas-opciones">
+              {% for persona in a.personas %}
+              <form method="post" action="/audio/{{ a.id }}/persona/{{ bloque.clave }}/resolver"
+                    data-ia-persona-opcion data-ia-nombre="{{ persona.nombre_visible|lower }} {{ (persona.nombre or '')|lower }} {{ (persona.apodo or '')|lower }}" data-proceso-form>
+                <input type="hidden" name="persona_id" value="{{ persona.id }}">
+                <input type="hidden" name="volver" value="/nota?audio={{ a.id }}#audio-activo">
+                <button type="submit">
+                  <span>{{ persona.nombre_visible }}</span>
+                  <small>{{ persona.circulo or 'Sin círculo' }}</small>
+                </button>
+              </form>
+              {% endfor %}
+            </div>
+          </details>
+        </section>
+
+        {% for titulo, campo, valores in [
+          ('Queda pendiente', 'pendientes', bloque.pendientes),
+          ('Preguntar por', 'preguntas', bloque.preguntas)
+        ] %}
+        <section class="bloque" data-ia-seccion>
+          <header class="bloque-cabecera">
+            <button class="bloque-plegar" type="button" data-ia-plegar aria-expanded="true">
+              <span class="bloque-etiqueta">{{ titulo }}</span>
+              <span class="bloque-cuenta" data-ia-cuenta>{{ valores|length }}</span>
+              <span class="bloque-signo" aria-hidden="true">−</span>
+            </button>
+          </header>
+          <div class="bloque-cuerpo">
+            <div class="captura-lista" data-ia-lista data-ia-campo="{{ campo }}">
+              {% for valor in valores or [''] %}
+              <div class="captura-fila" data-ia-fila>
+                <input form="{{ formulario }}" type="text" name="{{ campo }}" value="{{ valor }}">
+                <button class="discreto accion-eliminar" type="button" data-ia-quitar>Quitar</button>
+              </div>
+              {% endfor %}
+            </div>
+            <button class="discreto captura-anadir" type="button" data-ia-anadir>Añadir otro</button>
+          </div>
+        </section>
+        {% endfor %}
+
+        <section class="bloque captura-quedada" data-ia-seccion>
+          <header class="bloque-cabecera">
+            <button class="bloque-plegar" type="button" data-ia-plegar aria-expanded="true">
+              <span class="bloque-etiqueta">Quedada</span>
+              <span class="bloque-signo" aria-hidden="true">−</span>
+            </button>
+          </header>
+          <div class="bloque-cuerpo">
+            <div class="captura-quedada-textos">
+              <label>Día
+                <input form="{{ formulario }}" type="date" name="quedada_fecha" value="{{ bloque.quedada.fecha if bloque.quedada else '' }}">
+              </label>
+              <label>Por dónde
+                <input form="{{ formulario }}" type="text" name="quedada_canal" value="{{ bloque.quedada.canal if bloque.quedada and bloque.quedada.canal is defined else '' }}" placeholder="Llamada, mensaje, en persona…">
+              </label>
+              <label>Resumen para las fichas pequeñas
+                <input form="{{ formulario }}" type="text" name="quedada_resumen" value="{{ bloque.quedada.resumen if bloque.quedada else '' }}">
+              </label>
+              <label>Texto completo para su ficha
+                <textarea form="{{ formulario }}" name="quedada_texto">{{ bloque.quedada.texto if bloque.quedada else '' }}</textarea>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <section class="bloque" data-ia-seccion>
+          <header class="bloque-cabecera">
+            <button class="bloque-plegar" type="button" data-ia-plegar aria-expanded="true">
+              <span class="bloque-etiqueta">Datos</span>
+              <span class="bloque-cuenta" data-ia-cuenta>{{ bloque.datos|length }}</span>
+              <span class="bloque-signo" aria-hidden="true">−</span>
+            </button>
+          </header>
+          <div class="bloque-cuerpo">
+            <div class="captura-lista" data-ia-lista data-ia-campo="datos">
+              {% for valor in bloque.datos or [''] %}
+              <div class="captura-fila" data-ia-fila>
+                <input form="{{ formulario }}" type="text" name="datos" value="{{ valor }}">
+                <button class="discreto accion-eliminar" type="button" data-ia-quitar>Quitar</button>
+              </div>
+              {% endfor %}
+            </div>
+            <button class="discreto captura-anadir" type="button" data-ia-anadir>Añadir otro</button>
+          </div>
+        </section>
+
+        <div class="captura-acciones">
+          <p data-ia-estado aria-live="polite">{{ bloque.aviso or '' }}</p>
+          <form method="post"
+                action="/audio/{{ a.id }}/persona/{{ bloque.clave }}/eliminar"
+                data-proceso-form
+                data-confirmar="Se descarta este bloque. No se guardará nada en la ficha de {{ bloque.persona.nombre_visible if bloque.persona else (bloque.mencion or 'esta persona') }}. ¿Seguro?"
+                data-confirmar-accion="Descartar">
+            <input type="hidden" name="volver" value="/nota?audio={{ a.id }}#audio-activo">
+            <button class="discreto accion-eliminar" type="submit">Descartar bloque</button>
+          </form>
+          <form id="{{ formulario }}" method="post"
+                action="/audio/{{ a.id }}/persona/{{ bloque.clave }}/confirmar"
+                data-ia-confirmar data-proceso-form>
+            <input type="hidden" name="volver" value="/nota?audio={{ a.id }}#audio-activo">
+            <button class="boton-solido" type="submit">Confirmar esta persona</button>
+          </form>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+
+    <div class="audio-validar-todo">
+      <p data-validar-todo-estado aria-live="polite"></p>
+      <button class="boton-solido" type="button" data-validar-todo>Validar todo</button>
+    </div>
+  </section>
+  {% elif a.estado == 'listo' %}
+  <p class="vacio">No queda ningún bloque por revisar.</p>
+  {% endif %}
+
+  {% if a.borrador_datos.sin_asignar %}
+  <section class="audio-sin-asignar">
+    <p class="sobrelinea">POR REVISAR</p>
+    <ul>
+      {% for texto in a.borrador_datos.sin_asignar %}<li>{{ texto }}</li>{% endfor %}
+    </ul>
+    <p class="notas-ayuda">No se guardará hasta que puedas asignarlo a una persona.</p>
+  </section>
+  {% endif %}
+
+  <form class="audio-volver-form" method="post" action="/audio/{{ a.id }}/volver-a-analizar"
+        data-proceso-form data-audio-volver-form>
+    <input type="hidden" name="volver" value="/nota?audio={{ a.id }}#audio-activo">
+    <p data-audio-volver-estado aria-live="polite">{% if a.trabajando %}El audio se está procesando…{% endif %}</p>
+    <button class="discreto" type="submit" data-audio-volver-boton{% if a.trabajando %} disabled{% endif %}>{{ 'Procesando audio…' if a.trabajando else 'Volver a analizar' }}</button>
+  </form>
+</div>

@@ -1,14 +1,14 @@
 {% extends "base.html" %}
-{% block titulo %}{% if editando %}Editar quedada{% else %}Apuntar algo{% endif %} · Relaciones{% endblock %}
+{% block titulo %}{% if editando %}Editar quedada{% else %}Notas{% endif %} · Relaciones{% endblock %}
 {% block clase_body %}pagina-nota{% endblock %}
 
 {% block contenido %}
 <header class="pagina-cabecera pagina-cabecera-simple">
   <div>
-    <p class="sobrelinea">{% if editando %}CAMBIAR QUEDADA{% else %}NUEVA QUEDADA{% endif %}</p>
-    <h1 class="titulo">{% if editando %}Editar quedada{% else %}Apuntar algo{% endif %}</h1>
+    <p class="sobrelinea">{% if editando %}CAMBIAR QUEDADA{% else %}NOTAS{% endif %}</p>
+    <h1 class="titulo">{% if editando %}Editar quedada{% else %}Notas{% endif %}</h1>
     <p class="entradilla">{% if editando %}Corrige lo que pasó, la fecha, el canal o quién estuvo.{% else %}Primero escribe lo que quieres recordar. El resto puede esperar.{% endif %}</p>
-    {% if not editando %}<p class="entradilla-enlace"><a href="/audios">Apuntar por voz →</a></p>{% endif %}
+    {% if not editando %}<p class="entradilla-enlace"><a href="/nota#audios">Ver audios →</a></p>{% endif %}
   </div>
 </header>
 
@@ -20,6 +20,9 @@
     <div class="paso-contenido">
       <label for="texto">Qué ha pasado</label>
       <textarea id="texto" name="texto" required placeholder="Escribe aquí lo que quieres recordar…">{{ texto }}</textarea>
+      <label for="resumen">Resumen para las fichas pequeñas</label>
+      <input id="resumen" type="text" name="resumen" value="{{ resumen }}"
+             placeholder="Una línea breve y clara">
     </div>
   </section>
 
@@ -112,16 +115,11 @@
       <p class="vacio">Aún no hay nadie. Puedes escribir un nombre debajo.</p>
       {% endif %}
 
-      <details class="anadir">
-        <summary>Alguien que todavía no está</summary>
-        <label for="nuevas">Nombres separados por comas</label>
-        <input id="nuevas" type="text" name="personas_nuevas" autocomplete="off" placeholder="Ana, Julio">
-      </details>
     </div>
   </section>
 
   <div class="nota-acciones">
-    <button class="boton-solido" type="submit">{% if editando %}Guardar cambios{% else %}Apuntar{% endif %}</button>
+    <button class="boton-solido" type="submit">{% if editando %}Guardar cambios{% else %}Guardar nota{% endif %}</button>
     <a class="boton" href="{{ volver }}">Dejarlo</a>
     <span class="atajo">CTRL + ENTER</span>
   </div>

@@ -7,10 +7,15 @@
   var raiz = document.documentElement;
   var CLAVE_POSICION = 'relaciones:posicion-scroll';
 
+  function clavePosicion(ruta) {
+    return CLAVE_POSICION + ':' + (ruta || location.pathname);
+  }
+
   function guardarPosicion(ruta) {
     try {
-      sessionStorage.setItem(CLAVE_POSICION, JSON.stringify({
-        ruta: ruta || location.pathname,
+      var pantalla = ruta || location.pathname;
+      sessionStorage.setItem(clavePosicion(pantalla), JSON.stringify({
+        ruta: pantalla,
         y: window.scrollY,
         momento: Date.now()
       }));
@@ -19,11 +24,19 @@
 
   function recuperarPosicion() {
     try {
-      var guardada = sessionStorage.getItem(CLAVE_POSICION);
-      sessionStorage.removeItem(CLAVE_POSICION);
+      var clave = clavePosicion(location.pathname);
+      var guardada = sessionStorage.getItem(clave);
+      if (guardada) {
+        sessionStorage.removeItem(clave);
+      } else {
+        // Compatibilidad con una posición pendiente de la versión anterior.
+        guardada = sessionStorage.getItem(CLAVE_POSICION);
+        if (guardada) sessionStorage.removeItem(CLAVE_POSICION);
+      }
       if (!guardada) return null;
       var posicion = JSON.parse(guardada);
       if (Date.now() - posicion.momento > 60000) return null;
+      if (posicion.ruta !== location.pathname) return null;
       return posicion;
     } catch (e) {
       return null;
@@ -31,6 +44,14 @@
   }
 
   var posicionPendiente = recuperarPosicion();
+  if (posicionPendiente
+      && posicionPendiente.ruta === location.pathname
+      && location.hash
+      && history.replaceState) {
+    // El ancla es el respaldo sin JavaScript. Si ya conocemos el punto exacto,
+    // se retira antes de que el navegador llegue a desplazar la página hacia ella.
+    history.replaceState(history.state, '', location.pathname + location.search);
+  }
 
   // 1. Modo día/noche antes de pintar, para que no dé el fogonazo blanco.
   var guardado = null;
@@ -224,7 +245,9 @@
       dialogo.addEventListener('cancel', function () { pendiente = null; });
     }
 
-    document.querySelectorAll('[data-confirmar]').forEach(function (f) {
+    function iniciarConfirmacion(f) {
+      if (!f || f.__confirmacionPreparada) return;
+      f.__confirmacionPreparada = true;
       f.addEventListener('submit', function (ev) {
         if (f.dataset.confirmado === 'si') {
           delete f.dataset.confirmado;
@@ -240,10 +263,47 @@
         }
         pendiente = f;
         textoDialogo.textContent = f.dataset.confirmar;
+        if (siDialogo) {
+          siDialogo.textContent = f.dataset.confirmarAccion || 'Eliminar';
+        }
         dialogo.returnValue = 'no';
         dialogo.showModal();
         // El foco arranca en Cancelar: borrar nunca es el camino por inercia.
         if (noDialogo) noDialogo.focus();
+      });
+    }
+    document.querySelectorAll('[data-confirmar]').forEach(iniciarConfirmacion);
+
+    // Borrar una grabación no recarga Notas: así la confirmación no produce el
+    // salto arriba y vuelta abajo que se notaba especialmente en el móvil.
+    document.querySelectorAll('[data-audio-borrar]').forEach(function (formulario) {
+      formulario.addEventListener('submit', function (ev) {
+        if (ev.defaultPrevented || !window.fetch) return;
+        ev.preventDefault();
+        fetch(formulario.action, {
+          method: 'POST', body: new FormData(formulario),
+          headers: { 'X-Requested-With': 'fetch' }
+        }).then(function (respuesta) {
+          if (!respuesta.ok) throw new Error('No se pudo borrar');
+          var fila = formulario.closest('[data-audio-fila]');
+          var id = fila && fila.dataset.audioId;
+          if (fila) fila.remove();
+          var cuenta = document.querySelector('[data-audios-total]');
+          if (cuenta) cuenta.textContent = Math.max(0, Number(cuenta.textContent) - 1);
+          var opcion = document.querySelector('[data-audio-opcion][data-audio-id="' + id + '"]');
+          if (opcion) opcion.remove();
+          if (audioActivo && String(audioActivo.id) === String(id) && selectorAudio) {
+            var sinAudio = selectorAudio.querySelector('[data-audio-opcion][data-audio-id=""]');
+            if (sinAudio) sinAudio.click();
+          }
+          var lista = document.querySelector('.audios-lista');
+          if (lista && !lista.querySelector('[data-audio-fila]')) {
+            lista.outerHTML = '<p class="vacio">Todavía no has grabado nada. Usa la grabadora de voz desde el móvil.</p>';
+          }
+        }).catch(function () {
+          var boton = formulario.querySelector('button[type="submit"]');
+          if (boton) boton.disabled = false;
+        });
       });
     });
 
@@ -317,6 +377,13 @@
           nombrarRelacion(nombre);
           filtrarOpciones();
           mostrarResultados(false);
+          selector.dispatchEvent(new CustomEvent('persona-elegida', {
+            detail: {
+              id: opcion.dataset.id,
+              nombre: nombre,
+              circulo: opcion.dataset.circulo || ''
+            }
+          }));
           var fila = selector.closest('[data-relacion-alta]');
           enfocar(fila
             ? fila.querySelector('input[name="etiquetas"]')
@@ -326,6 +393,7 @@
 
       buscar.addEventListener('input', function () {
         if (valor.value) {
+          var personaAnterior = valor.value;
           valor.value = '';
           opciones.forEach(function (opcion) {
             opcion.setAttribute('aria-selected', 'false');
@@ -336,6 +404,9 @@
               : 'Elige una persona de la lista.';
           }
           nombrarRelacion('');
+          selector.dispatchEvent(new CustomEvent('persona-limpiada', {
+            detail: { id: personaAnterior }
+          }));
         }
         filtrarOpciones();
         mostrarResultados(true);
@@ -352,6 +423,7 @@
 
       if (limpiar) {
         limpiar.addEventListener('click', function () {
+          var personaAnterior = valor.value;
           buscar.value = '';
           valor.value = '';
           opciones.forEach(function (opcion) {
@@ -363,6 +435,11 @@
               : 'Elige una persona de la lista.';
           }
           nombrarRelacion('');
+          if (personaAnterior) {
+            selector.dispatchEvent(new CustomEvent('persona-limpiada', {
+              detail: { id: personaAnterior }
+            }));
+          }
           filtrarOpciones();
           mostrarResultados(true);
           enfocar(buscar);
@@ -508,8 +585,10 @@
     // 9 bis. La fecha de una quedada. Casi siempre es de estos días, así que
     //        delante van los atajos y el calendario queda detrás, plegado.
     //        Todo son botones: desplegarlo no abre el teclado.
-    var campoFecha = document.querySelector('[data-fecha]');
-    if (campoFecha) {
+    var contadorFechas = 0;
+    function iniciarFecha(campoFecha) {
+      if (!campoFecha || campoFecha.__relacionesIniciada) return;
+      campoFecha.__relacionesIniciada = true;
       var DIAS_CORTOS = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'];
       var MESES_FECHA = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
         'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -519,7 +598,7 @@
       // <noscript>, y así nunca viajan dos «fecha» a la vez.
       var valorFecha = document.createElement('input');
       valorFecha.type = 'hidden';
-      valorFecha.name = 'fecha';
+      valorFecha.name = campoFecha.dataset.fechaNombre || 'fecha';
       campoFecha.appendChild(valorFecha);
 
       var atajos = campoFecha.querySelector('[data-fecha-atajos]');
@@ -529,6 +608,9 @@
       var calendario = campoFecha.querySelector('[data-fecha-calendario]');
       var tituloMes = campoFecha.querySelector('[data-fecha-titulo]');
       var rejilla = campoFecha.querySelector('[data-fecha-dias]');
+      contadorFechas += 1;
+      if (!calendario.id) calendario.id = 'fecha-calendario-' + contadorFechas;
+      abrirFecha.setAttribute('aria-controls', calendario.id);
 
       function aIso(d) {
         return d.getFullYear() + '-' +
@@ -639,9 +721,466 @@
 
       campoFecha.hidden = false;
       pintarFecha();
+      campoFecha.__elegirFecha = function (iso) {
+        var d = deIso(iso);
+        if (!d) return;
+        seleccion = d;
+        mesVisible = new Date(d.getFullYear(), d.getMonth(), 1);
+        pintarFecha();
+      };
+    }
+    document.querySelectorAll('[data-fecha]').forEach(iniciarFecha);
+
+    // 9 ter. Notas: un audio activo opcional y varios formularios aislados,
+    //        uno por persona. La estructura queda marcada con `data-campo`
+    //        para que más adelante Qwen pueda rellenar exactamente lo mismo.
+    var audioActivo = { id: '', fecha: '' };
+    var selectorAudio = document.querySelector('[data-audio-selector]');
+    if (selectorAudio) {
+      var opcionesAudio = Array.from(
+        selectorAudio.querySelectorAll('[data-audio-opcion]')
+      );
+      var audioVacio = selectorAudio.querySelector('[data-audio-vacio]');
+      var audioElegido = selectorAudio.querySelector('[data-audio-elegido]');
+      var audioFecha = selectorAudio.querySelector('[data-audio-fecha]');
+      var audioSituacion = selectorAudio.querySelector('[data-audio-situacion]');
+      var audioEstado = selectorAudio.querySelector('[data-audio-estado]');
+      var audioOir = selectorAudio.querySelector('[data-audio-oir]');
+      var audioProceso = selectorAudio.querySelector('[data-audio-proceso]');
+      var esperaProceso = null;
+
+      function enviarFormularioProceso(formulario) {
+        return fetch(formulario.action, {
+          method: 'POST', body: new FormData(formulario),
+          headers: { 'X-Requested-With': 'fetch' }
+        });
+      }
+
+      function iniciarContenidoProceso() {
+        var contenido = audioProceso.querySelector('[data-audio-proceso-contenido]');
+        if (!contenido) return;
+        if (esperaProceso) clearTimeout(esperaProceso);
+
+        contenido.querySelectorAll('[data-confirmar]').forEach(iniciarConfirmacion);
+
+        contenido.querySelectorAll('[data-ia-plegar]').forEach(function (boton) {
+          var cuerpo = boton.closest('[data-ia-seccion]').querySelector('.bloque-cuerpo');
+          boton.addEventListener('click', function () {
+            var abrir = cuerpo.hidden;
+            cuerpo.hidden = !abrir;
+            boton.setAttribute('aria-expanded', String(abrir));
+            var signo = boton.querySelector('.bloque-signo');
+            if (signo) signo.textContent = abrir ? '−' : '+';
+          });
+        });
+
+        contenido.querySelectorAll('[data-ia-lista]').forEach(function (lista) {
+          var seccion = lista.closest('[data-ia-seccion]');
+          var cuenta = seccion.querySelector('[data-ia-cuenta]');
+          function actualizarLista() {
+            var filas = Array.from(lista.querySelectorAll('[data-ia-fila]'));
+            if (cuenta) cuenta.textContent = filas.filter(function (fila) {
+              return fila.querySelector('input').value.trim();
+            }).length;
+            filas.forEach(function (fila) {
+              fila.querySelector('[data-ia-quitar]').hidden = filas.length === 1;
+            });
+          }
+          seccion.querySelector('[data-ia-anadir]').addEventListener('click', function () {
+            var nueva = lista.querySelector('[data-ia-fila]').cloneNode(true);
+            nueva.querySelector('input').value = '';
+            lista.appendChild(nueva);
+            actualizarLista();
+            enfocar(nueva.querySelector('input'));
+          });
+          lista.addEventListener('click', function (ev) {
+            var quitar = ev.target.closest('[data-ia-quitar]');
+            if (quitar && lista.children.length > 1) quitar.closest('[data-ia-fila]').remove();
+            actualizarLista();
+          });
+          lista.addEventListener('input', actualizarLista);
+          actualizarLista();
+        });
+
+        contenido.querySelectorAll('[data-ia-cambiar]').forEach(function (boton) {
+          boton.addEventListener('click', function () {
+            var detalle = boton.closest('.bloque-identidad').querySelector('[data-ia-selector]');
+            if (detalle) {
+              detalle.open = true;
+              enfocar(detalle.querySelector('[data-ia-buscar-persona]'));
+            }
+          });
+        });
+        contenido.querySelectorAll('[data-ia-selector]').forEach(function (selector) {
+          var buscar = selector.querySelector('[data-ia-buscar-persona]');
+          var opciones = Array.from(selector.querySelectorAll('[data-ia-persona-opcion]'));
+          function normalizarNombre(texto) {
+            return String(texto || '').normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '').toLowerCase();
+          }
+          buscar.addEventListener('input', function () {
+            var termino = normalizarNombre(buscar.value.trim());
+            opciones.forEach(function (opcion) {
+              opcion.hidden = termino && normalizarNombre(opcion.dataset.iaNombre).indexOf(termino) === -1;
+            });
+          });
+        });
+
+        var editar = contenido.querySelector('[data-audio-editar-form]');
+        if (editar) {
+          editar.addEventListener('submit', function (ev) {
+            var caja = editar.querySelector('[data-audio-transcripcion]');
+            var boton = editar.querySelector('[data-audio-editar]');
+            if (caja.readOnly) {
+              ev.preventDefault();
+              ev.stopImmediatePropagation();
+              caja.readOnly = false;
+              boton.textContent = 'Enviar a Qwen';
+              enfocar(caja);
+            }
+          });
+        }
+
+        contenido.querySelectorAll('[data-proceso-form]').forEach(function (formulario) {
+          formulario.addEventListener('submit', function (ev) {
+            if (ev.defaultPrevented) return;
+            ev.preventDefault();
+            var boton = formulario.querySelector('button[type="submit"]');
+            var esReanalisis = formulario.matches('[data-audio-volver-form]');
+            var textoBoton = boton ? boton.textContent : '';
+            var estadoGeneral = contenido.querySelector('.audio-proceso-estado p');
+            var textoEstado = estadoGeneral ? estadoGeneral.textContent : '';
+            var estadoReanalisis = formulario.querySelector('[data-audio-volver-estado]');
+            if (boton) boton.disabled = true;
+            if (esReanalisis) {
+              contenido.setAttribute('aria-busy', 'true');
+              if (boton) boton.textContent = 'Volviendo a analizar…';
+              if (estadoGeneral) estadoGeneral.textContent = 'Volviendo a analizar el audio…';
+              if (estadoReanalisis) estadoReanalisis.textContent = 'Whisper está transcribiendo el audio de nuevo.';
+              audioEstado.textContent = 'Volviendo a analizar…';
+              audioSituacion.textContent = 'Volviendo a analizar…';
+            }
+            enviarFormularioProceso(formulario).then(function (respuesta) {
+              if (!respuesta.ok) throw new Error('No se pudo guardar');
+              if (esReanalisis) {
+                esperaProceso = setTimeout(function () {
+                  cargarProceso(audioActivo.id);
+                }, 900);
+                return;
+              }
+              return cargarProceso(audioActivo.id);
+            }).catch(function () {
+              if (boton) {
+                boton.disabled = false;
+                boton.textContent = textoBoton;
+              }
+              if (esReanalisis) {
+                contenido.removeAttribute('aria-busy');
+                if (estadoGeneral) estadoGeneral.textContent = textoEstado;
+                if (estadoReanalisis) estadoReanalisis.textContent = 'No se pudo volver a analizar. Inténtalo de nuevo.';
+                audioEstado.textContent = textoEstado;
+                audioSituacion.textContent = textoEstado;
+              }
+              var estado = formulario.closest('[data-ia-bloque]');
+              estado = estado && estado.querySelector('[data-ia-estado]');
+              if (estado) estado.textContent = 'No se pudo guardar. Inténtalo de nuevo.';
+            });
+          });
+        });
+
+        var validarTodo = contenido.querySelector('[data-validar-todo]');
+        if (validarTodo) {
+          validarTodo.addEventListener('click', function () {
+            var formularios = Array.from(contenido.querySelectorAll('[data-ia-confirmar]'));
+            var estado = contenido.querySelector('[data-validar-todo-estado]');
+            validarTodo.disabled = true;
+            estado.textContent = 'Guardando los bloques completos…';
+            formularios.reduce(function (cadena, formulario) {
+              return cadena.then(function () { return enviarFormularioProceso(formulario); });
+            }, Promise.resolve()).then(function () {
+              return cargarProceso(audioActivo.id);
+            }).catch(function () {
+              validarTodo.disabled = false;
+              estado.textContent = 'No se pudo terminar. Los bloques pendientes siguen aquí.';
+            });
+          });
+        }
+
+        if (contenido.dataset.audioTrabajando === 'si') {
+          esperaProceso = setTimeout(function () { cargarProceso(audioActivo.id); }, 1600);
+        }
+      }
+
+      function cargarProceso(audioId) {
+        if (!audioId || !audioProceso) {
+          if (audioProceso) audioProceso.innerHTML = '';
+          return Promise.resolve();
+        }
+        return fetch('/nota/audio/' + audioId + '/proceso', {
+          headers: { 'X-Requested-With': 'fetch' }
+        }).then(function (respuesta) {
+          if (!respuesta.ok) throw new Error('Audio no encontrado');
+          return respuesta.text();
+        }).then(function (html) {
+          if (String(audioActivo.id) !== String(audioId)) return;
+          audioProceso.innerHTML = html;
+          iniciarContenidoProceso();
+          var contenido = audioProceso.querySelector('[data-audio-proceso-contenido]');
+          var estado = contenido && contenido.querySelector('.audio-proceso-estado p');
+          if (estado) {
+            audioEstado.textContent = estado.textContent;
+            audioSituacion.textContent = estado.textContent;
+            var opcionActual = selectorAudio.querySelector(
+              '[data-audio-opcion][data-audio-id="' + audioId + '"]'
+            );
+            if (opcionActual) {
+              opcionActual.dataset.audioSituacion = estado.textContent;
+              var estadoOpcion = opcionActual.querySelector('small');
+              if (estadoOpcion) estadoOpcion.textContent = estado.textContent;
+              if (contenido.dataset.audioEstadoCodigo === 'revisado') {
+                opcionActual.remove();
+              }
+            }
+          }
+        });
+      }
+
+      function propagarAudio() {
+        document.querySelectorAll('[data-captura-form]').forEach(function (formulario) {
+          var campoAudio = formulario.querySelector('[data-captura-audio]');
+          if (campoAudio) campoAudio.value = audioActivo.id;
+          var fecha = formulario.querySelector('[data-fecha]');
+          if (fecha && fecha.__elegirFecha && audioActivo.fecha) {
+            fecha.__elegirFecha(audioActivo.fecha);
+          }
+        });
+      }
+
+      function elegirAudio(opcion) {
+        audioActivo.id = opcion.dataset.audioId || '';
+        audioActivo.fecha = opcion.dataset.audioFechaIso || '';
+        opcionesAudio.forEach(function (otra) {
+          otra.setAttribute('aria-pressed', String(otra === opcion));
+        });
+        var hayAudio = !!audioActivo.id;
+        audioVacio.hidden = hayAudio;
+        audioElegido.hidden = !hayAudio;
+        audioEstado.textContent = hayAudio
+          ? (opcion.dataset.audioSituacion || 'Pendiente') : 'Sin audio';
+        if (hayAudio) {
+          audioFecha.textContent = opcion.dataset.audioFecha || '';
+          audioSituacion.textContent = opcion.dataset.audioSituacion || 'Pendiente';
+          audioOir.setAttribute('data-oir', opcion.dataset.audioUrl || '');
+        } else {
+          audioOir.removeAttribute('data-oir');
+        }
+        var detalle = opcion.closest('details');
+        if (detalle) detalle.open = false;
+        propagarAudio();
+        cargarProceso(audioActivo.id);
+      }
+
+      opcionesAudio.forEach(function (opcion) {
+        opcion.setAttribute('aria-pressed', 'false');
+        opcion.addEventListener('click', function () { elegirAudio(opcion); });
+      });
+      var audioInicial = selectorAudio.dataset.audioInicial;
+      if (audioInicial) {
+        var opcionInicialAudio = selectorAudio.querySelector(
+          '[data-audio-opcion][data-audio-id="' + audioInicial + '"]'
+        );
+        if (opcionInicialAudio) elegirAudio(opcionInicialAudio);
+      }
     }
 
-    // 9 ter. La ficha completa: cada bloque se pliega y entra en edición por su
+    var captura = document.querySelector('[data-captura]');
+    if (captura && captura.querySelector('[data-selector-persona]')) {
+      var selectorCaptura = captura.querySelector('[data-selector-persona]');
+      var bloquesCaptura = captura.querySelector('[data-captura-bloques]');
+      var modeloCaptura = document.querySelector('[data-captura-modelo]');
+      var avisoCaptura = captura.querySelector('[data-captura-aviso]');
+      var personasAbiertas = {};
+
+      function iniciarPlegablesCaptura(formulario, personaId) {
+        formulario.querySelectorAll('[data-captura-plegar]').forEach(function (boton, indice) {
+          var seccion = boton.closest('.bloque');
+          var cuerpo = seccion ? seccion.querySelector('.bloque-cuerpo') : null;
+          if (!cuerpo) return;
+          var cuerpoId = 'captura-' + personaId + '-bloque-' + indice;
+          cuerpo.id = cuerpoId;
+          boton.setAttribute('aria-controls', cuerpoId);
+
+          function pintar(abierto) {
+            cuerpo.hidden = !abierto;
+            boton.setAttribute('aria-expanded', String(abierto));
+            var signo = boton.querySelector('.bloque-signo');
+            if (signo) signo.textContent = abierto ? '−' : '+';
+          }
+
+          boton.__pintarCaptura = pintar;
+          boton.addEventListener('click', function () {
+            pintar(boton.getAttribute('aria-expanded') !== 'true');
+          });
+          pintar(true);
+        });
+      }
+
+      function abrirSeccionCaptura(campo) {
+        var seccion = campo ? campo.closest('.bloque') : null;
+        var boton = seccion ? seccion.querySelector('[data-captura-plegar]') : null;
+        if (boton && boton.__pintarCaptura) boton.__pintarCaptura(true);
+      }
+
+      function iniciarRepetible(seccion) {
+        var lista = seccion.querySelector('[data-captura-lista]');
+        var anadir = seccion.querySelector('[data-captura-anadir]');
+        var cuenta = seccion.querySelector('[data-captura-cuenta]');
+
+        function actualizar() {
+          var filas = Array.from(lista.querySelectorAll('[data-captura-fila]'));
+          var conTexto = filas.filter(function (fila) {
+            var campo = fila.querySelector('input');
+            return campo && campo.value.trim();
+          }).length;
+          if (cuenta) cuenta.textContent = conTexto;
+          filas.forEach(function (fila) {
+            var quitar = fila.querySelector('[data-captura-quitar]');
+            if (quitar) quitar.hidden = filas.length === 1;
+          });
+        }
+
+        anadir.addEventListener('click', function () {
+          var original = lista.querySelector('[data-captura-fila]');
+          var nueva = original.cloneNode(true);
+          var campo = nueva.querySelector('input');
+          campo.value = '';
+          lista.appendChild(nueva);
+          actualizar();
+          enfocar(campo);
+        });
+        lista.addEventListener('click', function (ev) {
+          var quitar = ev.target.closest('[data-captura-quitar]');
+          if (!quitar) return;
+          var fila = quitar.closest('[data-captura-fila]');
+          if (fila && lista.children.length > 1) fila.remove();
+          actualizar();
+        });
+        lista.addEventListener('input', actualizar);
+        actualizar();
+      }
+
+      function abrirPersona(detalle) {
+        if (!detalle || !detalle.id || !modeloCaptura) return;
+        if (personasAbiertas[detalle.id]) {
+          avisoCaptura.textContent = detalle.nombre + ' ya tiene un bloque abierto.';
+          personasAbiertas[detalle.id].scrollIntoView({ block: 'start', behavior: 'smooth' });
+          return;
+        }
+
+        var fragmento = modeloCaptura.content.cloneNode(true);
+        var formulario = fragmento.querySelector('[data-captura-form]');
+        formulario.action = '/nota/persona/' + detalle.id;
+        formulario.dataset.personaId = detalle.id;
+        formulario.querySelector('[data-persona-numero]').textContent =
+          String(detalle.id).padStart(4, '0');
+        formulario.querySelector('[data-persona-inicial]').textContent =
+          detalle.nombre.slice(0, 1).toUpperCase();
+        formulario.querySelector('[data-persona-nombre]').textContent = detalle.nombre;
+        var circulo = formulario.querySelector('[data-persona-circulo]');
+        circulo.textContent = detalle.circulo;
+        circulo.hidden = !detalle.circulo;
+        formulario.querySelector('[data-captura-audio]').value = audioActivo.id;
+        iniciarPlegablesCaptura(formulario, detalle.id);
+        formulario.querySelectorAll('[data-captura-repetible]').forEach(iniciarRepetible);
+        var fecha = formulario.querySelector('[data-fecha]');
+        iniciarFecha(fecha);
+        if (audioActivo.fecha && fecha.__elegirFecha) {
+          fecha.__elegirFecha(audioActivo.fecha);
+        }
+
+        formulario.querySelector('[data-captura-descartar]')
+          .addEventListener('click', function () {
+            delete personasAbiertas[detalle.id];
+            formulario.remove();
+            avisoCaptura.textContent = 'Borrador de ' + detalle.nombre + ' descartado. Su ficha no ha cambiado.';
+          });
+
+        formulario.addEventListener('keydown', function (ev) {
+          if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey) && ev.target.tagName === 'TEXTAREA') {
+            ev.preventDefault();
+            formulario.requestSubmit ? formulario.requestSubmit() : formulario.submit();
+          }
+        });
+
+        formulario.addEventListener('submit', function (ev) {
+          var resumenQuedada = formulario.querySelector('[name="quedada_resumen"]');
+          var textoQuedada = formulario.querySelector('[name="quedada_texto"]');
+          if (!!resumenQuedada.value.trim() !== !!textoQuedada.value.trim()) {
+            ev.preventDefault();
+            formulario.querySelector('[data-captura-estado]').textContent =
+              'Completa el resumen y el texto completo de la quedada.';
+            abrirSeccionCaptura(resumenQuedada.value.trim() ? textoQuedada : resumenQuedada);
+            enfocar(resumenQuedada.value.trim() ? textoQuedada : resumenQuedada);
+            return;
+          }
+          var escritos = Array.from(
+            formulario.querySelectorAll('input[type="text"], textarea')
+          ).some(function (campo) { return campo.value.trim(); });
+          var estado = formulario.querySelector('[data-captura-estado]');
+          if (!escritos) {
+            ev.preventDefault();
+            estado.textContent = 'No has escrito nada todavía.';
+            return;
+          }
+          if (!window.fetch) return;
+          ev.preventDefault();
+          var botonGuardar = formulario.querySelector('button[type="submit"]');
+          botonGuardar.disabled = true;
+          estado.textContent = 'Guardando…';
+          fetch(formulario.action, {
+            method: 'POST',
+            body: new FormData(formulario),
+            headers: { 'X-Requested-With': 'fetch' }
+          }).then(function (respuesta) {
+            if (!respuesta.ok) throw new Error('No se pudo guardar');
+            delete personasAbiertas[detalle.id];
+            formulario.remove();
+            avisoCaptura.textContent = 'Guardado en la ficha de ' + detalle.nombre + '.';
+          }).catch(function () {
+            botonGuardar.disabled = false;
+            estado.textContent = 'No se pudo guardar. Inténtalo de nuevo.';
+          });
+        });
+
+        bloquesCaptura.appendChild(formulario);
+        personasAbiertas[detalle.id] = formulario;
+        avisoCaptura.textContent = 'Bloque de ' + detalle.nombre + ' preparado.';
+        formulario.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      }
+
+      selectorCaptura.addEventListener('persona-elegida', function (ev) {
+        abrirPersona(ev.detail);
+      });
+
+      selectorCaptura.addEventListener('persona-limpiada', function (ev) {
+        var personaId = ev.detail && ev.detail.id;
+        var formulario = personaId ? personasAbiertas[personaId] : null;
+        if (!formulario) return;
+        formulario.remove();
+        delete personasAbiertas[personaId];
+        avisoCaptura.textContent = '';
+      });
+
+      var personaInicial = captura.dataset.personaInicial;
+      if (personaInicial) {
+        var opcionInicial = selectorCaptura.querySelector(
+          '[role="option"][data-id="' + personaInicial + '"]'
+        );
+        if (opcionInicial) opcionInicial.click();
+      }
+    }
+
+    // 9 quater. La ficha completa: cada bloque se pliega y entra en edición por su
     //        cuenta. Abrir uno no abre los demás. El ocultado lo enciende este
     //        JavaScript, así que sin él la ficha se ve entera, como siempre.
     document.querySelectorAll('[data-bloque]').forEach(function (bloque) {
@@ -660,7 +1199,13 @@
 
       if (plegar && cuerpo) {
         plegar.addEventListener('click', function () {
+          var posicion = window.scrollY;
           pintarPliegue(plegar.getAttribute('aria-expanded') !== 'true');
+          window.scrollTo(0, posicion);
+          requestAnimationFrame(function () {
+            window.scrollTo(0, posicion);
+            requestAnimationFrame(function () { window.scrollTo(0, posicion); });
+          });
         });
       }
 
@@ -671,17 +1216,35 @@
         editar.setAttribute('aria-pressed', String(arranca === 'si'));
 
         editar.addEventListener('click', function () {
+          var posicion = window.scrollY;
           var editando = bloque.dataset.edicion === 'si';
           bloque.dataset.edicion = editando ? 'no' : 'si';
           editar.setAttribute('aria-pressed', String(!editando));
           // Entrar a editar un bloque plegado lo abre; no tendría sentido
           // encender los botones de algo que no se ve.
           if (!editando && cuerpo && cuerpo.hidden) pintarPliegue(true);
+          window.scrollTo(0, posicion);
+          requestAnimationFrame(function () {
+            window.scrollTo(0, posicion);
+            requestAnimationFrame(function () { window.scrollTo(0, posicion); });
+          });
         });
       }
     });
 
-    // 9 quater. Enlazar con varias personas a la vez. Los atajos marcan un
+    // La edición individual de una relación usa <details>. Su apertura es una
+    // acción nativa posterior al clic, por eso la posición se reafirma al pintar.
+    document.querySelectorAll('details.editar-registro > summary').forEach(function (resumen) {
+      resumen.addEventListener('click', function () {
+        var posicion = window.scrollY;
+        requestAnimationFrame(function () {
+          window.scrollTo(0, posicion);
+          requestAnimationFrame(function () { window.scrollTo(0, posicion); });
+        });
+      });
+    });
+
+    // 9 quinquies. Enlazar con varias personas a la vez. Los atajos marcan un
     //           círculo entero, que es de donde salen los grupos que se
     //           repiten: compañeros, primos, gente del barrio.
     //           Hay dos: el de la ficha y el del alta de una persona.
@@ -855,9 +1418,10 @@
       });
     }
 
-    // 11. Toda recarga que vuelve a la misma pantalla conserva su posición.
-    //     Los enlaces con un ancla expresa mandan: el navegador lleva al bloque
-    //     indicado. Esta regla evita que añadir, editar o filtrar mande arriba.
+    // 11. Toda recarga que vuelve a la misma pantalla conserva su posición,
+    //     incluso si el servidor añade un ancla como respaldo sin JavaScript.
+    //     Cada ruta guarda su propia posición para no perder la ficha al salir
+    //     a editar una quedada y regresar después.
     document.addEventListener('submit', function (ev) {
       var formulario = ev.target;
       if (ev.defaultPrevented || !formulario) return;
@@ -873,19 +1437,24 @@
       if (!enlace || enlace.target || enlace.hasAttribute('download')) return;
       try {
         var destino = new URL(enlace.href, location.href);
+        var volver = destino.searchParams.get('volver');
+        var regreso = volver ? new URL(volver, location.origin) : null;
         if (
           destino.origin === location.origin
-          && destino.pathname === location.pathname
-          && !destino.hash
+          && (
+            (destino.pathname === location.pathname && !destino.hash)
+            || (regreso
+                && regreso.origin === location.origin
+                && regreso.pathname === location.pathname)
+          )
         ) {
-          guardarPosicion(destino.pathname);
+          guardarPosicion(location.pathname);
         }
       } catch (e) { /* enlace no navegable */ }
     });
 
     if (posicionPendiente
-        && posicionPendiente.ruta === location.pathname
-        && !location.hash) {
+        && posicionPendiente.ruta === location.pathname) {
       window.addEventListener('load', function () {
         var restaurar = function () {
           requestAnimationFrame(function () {

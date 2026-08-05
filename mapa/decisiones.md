@@ -42,11 +42,11 @@ para que el móvil enseñe versiones viejas justo después de tocar algo.
 Dos cosas contradicen la letra de `CLAUDE.md` porque se pidieron
 explícitamente. **Están acotadas y no se extienden:**
 
-1. **Banda rellena como cabecera de sección**, sólo en la ficha completa
-   (`.bloque-cabecera`). El resto de la app sigue separando con aire, filete y
-   el cuadrado de tinta.
-2. **Un rojo** (`--alarma`), sólo como estado de hover de un borrado. No entra
-   en ningún otro sitio de la interfaz.
+1. **Banda rellena como cabecera de sección**, en la ficha completa y en los
+   bloques personales de la captura de Notas (`.bloque-cabecera`). Comparten el
+   mismo componente; el resto de la app sigue separando con aire y filete.
+2. **Un rojo** (`--alarma`), para el hover de un borrado y para una identidad
+   propuesta por la voz que aún necesita confirmación. No entra en otros estados.
 
 ## Reglas de trabajo
 
@@ -59,6 +59,16 @@ explícitamente. **Están acotadas y no se extienden:**
 - Subir el `?v=` de los recursos estáticos o el móvil usará la caché vieja.
 - Nunca matar procesos por nombre; localizar por el puerto 9765.
 - Los audios son archivos sueltos en `audios/`, nunca dentro de la base, y
-  fuera de git y de la copia de todo: contienen voz. Ninguno se borra solo.
+  fuera de git y de la copia de todo: contienen voz. Archivo y fila forman una
+  pareja uno-a-uno: el arranque reconcilia ambos y subir/borrar compensan fallos.
 - El audio se guarda tal cual llega del móvil (Opus donde se pueda), sin
   transcodificar: cero dependencias nuevas y nada sale a internet.
+- Notas puede usarse sin audio. Al subir una grabación, la cola local ejecuta
+  Whisper y Qwen automáticamente; elegirla sólo decide qué proceso se revisa.
+- Una quedada guarda resumen y texto completo: las fichas compactas enseñan el
+  primero y la ficha general el segundo. Las filas antiguas caen a su texto.
+- La voz separa utilidad y precisión: *Preguntar por* guarda sólo el asunto
+  natural («El viaje a Huelva»); el resumen compacto recuerda lo esencial con
+  tiempo relativo («esa misma semana»); el texto extendido conserva fechas,
+  horarios, canal y discurso indirecto natural. Un plan o una compra puntual
+  pertenece a la quedada, nunca a Datos.

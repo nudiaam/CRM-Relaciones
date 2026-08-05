@@ -8,10 +8,14 @@ anteriores se ponen al día en poner_al_dia(), que es idempotente.
 """
 
 import json
+import os
 import re
 import secrets
 import sqlite3
 import sys
+import threading
+import urllib.error
+import urllib.request
 from base64 import b64decode, b64encode
 from datetime import date, datetime
 from io import BytesIO
@@ -74,11 +78,12 @@ CREATE TABLE IF NOT EXISTS hilo (
     tipo          TEXT NOT NULL DEFAULT 'preguntar'
 );
 CREATE TABLE IF NOT EXISTS nota (
-    id     INTEGER PRIMARY KEY,
-    fecha  TEXT NOT NULL,
-    canal  TEXT,
-    texto  TEXT NOT NULL,
-    creada TEXT NOT NULL
+    id      INTEGER PRIMARY KEY,
+    fecha   TEXT NOT NULL,
+    canal   TEXT,
+    texto   TEXT NOT NULL,
+    resumen TEXT,
+    creada  TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS nota_persona (
     nota_id    INTEGER NOT NULL REFERENCES nota(id) ON DELETE CASCADE,
@@ -97,10 +102,23 @@ CREATE TABLE IF NOT EXISTS ajuste (
     valor TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS audio (
-    id      INTEGER PRIMARY KEY,
-    archivo TEXT NOT NULL,                       -- nombre del archivo en audios/
-    grabado TEXT NOT NULL,                       -- fecha de grabación (la pone el móvil)
-    estado  TEXT NOT NULL DEFAULT 'pendiente'    -- de momento siempre 'pendiente'
+    id                    INTEGER PRIMARY KEY,
+    archivo               TEXT NOT NULL,
+    grabado               TEXT NOT NULL,
+    estado                TEXT NOT NULL DEFAULT 'pendiente',
+    transcripcion         TEXT,
+    transcripcion_editada INTEGER NOT NULL DEFAULT 0,
+    borrador              TEXT,
+    error                 TEXT,
+    actualizado           TEXT,
+    contrato_version      INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS audio_registro (
+    audio_id    INTEGER NOT NULL REFERENCES audio(id) ON DELETE CASCADE,
+    tipo        TEXT NOT NULL,
+    registro_id INTEGER NOT NULL,
+    persona_id  INTEGER NOT NULL REFERENCES persona(id) ON DELETE CASCADE,
+    PRIMARY KEY (audio_id, tipo, registro_id, persona_id)
 );
 """
 
@@ -112,7 +130,15 @@ TABLAS_EXPORTABLES = (
 # carpeta viaja con el .exe igual que datos.db, y queda fuera de git y de la
 # copia de todo porque contiene voz. De momento no se procesan: sólo se guardan.
 CARPETA_AUDIOS = BASE_DATOS / "audios"
+CARPETA_AUDIOS_BORRADOS = BASE_DATOS / ".audios-borrados"
 MAX_AUDIO_BYTES = 60 * 1024 * 1024  # una hora de voz en Opus cabe de sobra
+MODELO_WHISPER = "large-v3"
+MODELO_QWEN = "qwen3:14b"
+OLLAMA_CHAT = "http://127.0.0.1:11434/api/chat"
+MAX_TOKENS_QWEN_PENSANDO = 4096
+MAX_TOKENS_QWEN_DIRECTO = 8192
+ESPERA_QWEN_SEGUNDOS = 180
+CONTRATO_BORRADOR = 2
 
 # El navegador decide el contenedor según el móvil: Opus en webm/ogg donde se
 # puede (Android), mp4/AAC donde no (iPhone). El servidor no transcodifica; sólo
@@ -170,6 +196,37 @@ def poner_al_dia(con):
     if "foto" not in columnas_persona:
         con.execute("ALTER TABLE persona ADD COLUMN foto TEXT")
 
+    columnas_nota = {
+        f["name"] for f in con.execute("PRAGMA table_info(nota)")
+    }
+    if "resumen" not in columnas_nota:
+        con.execute("ALTER TABLE nota ADD COLUMN resumen TEXT")
+
+    columnas_audio = {
+        f["name"] for f in con.execute("PRAGMA table_info(audio)")
+    }
+    columnas_audio_nuevas = {
+        "transcripcion": "TEXT",
+        "transcripcion_editada": "INTEGER NOT NULL DEFAULT 0",
+        "borrador": "TEXT",
+        "error": "TEXT",
+        "actualizado": "TEXT",
+        "contrato_version": "INTEGER NOT NULL DEFAULT 1",
+    }
+    for nombre, definicion in columnas_audio_nuevas.items():
+        if nombre not in columnas_audio:
+            con.execute(f"ALTER TABLE audio ADD COLUMN {nombre} {definicion}")
+
+    # Si la app se cerró con un modelo trabajando, se retoma sin perder la
+    # transcripción que ya estuviera terminada.
+    con.execute(
+        "UPDATE audio SET estado = 'pendiente' WHERE estado = 'transcribiendo'"
+    )
+    con.execute(
+        "UPDATE audio SET estado = 'analisis_pendiente' "
+        "WHERE estado = 'analizando' AND transcripcion IS NOT NULL"
+    )
+
     viejos = {f["nombre"]: f["id"] for f in con.execute(
         "SELECT id, nombre FROM circulo"
     )}
@@ -186,6 +243,52 @@ def poner_al_dia(con):
             )
 
 
+def fecha_del_nombre_audio(ruta):
+    coincidencia = re.match(r"^(\d{8})-(\d{6})-", ruta.name)
+    if coincidencia:
+        try:
+            return datetime.strptime(
+                "".join(coincidencia.groups()), "%Y%m%d%H%M%S"
+            ).isoformat(timespec="seconds")
+        except ValueError:
+            pass
+    return datetime.fromtimestamp(ruta.stat().st_mtime).isoformat(timespec="seconds")
+
+
+def reconciliar_audios(con):
+    """Mantiene una relación uno-a-uno entre `audio` y los archivos reales.
+
+    Los archivos sin fila se recuperan como pendientes. Las filas sin archivo y
+    los duplicados se retiran porque no tienen una grabación distinta que servir.
+    Los temporales de una subida o un borrado no cuentan como grabaciones.
+    """
+    extensiones = set(EXT_POR_MIME.values())
+    archivos = {
+        ruta.name: ruta for ruta in CARPETA_AUDIOS.iterdir()
+        if ruta.is_file() and ruta.suffix.lower() in extensiones
+    }
+    enlazados = set()
+    for fila in con.execute(
+        "SELECT id, archivo FROM audio ORDER BY id DESC"
+    ).fetchall():
+        nombre = Path(fila["archivo"]).name
+        if nombre not in archivos or nombre in enlazados:
+            con.execute("DELETE FROM audio WHERE id = ?", (fila["id"],))
+        else:
+            enlazados.add(nombre)
+
+    for nombre, ruta in archivos.items():
+        if nombre not in enlazados:
+            con.execute(
+                "INSERT INTO audio (archivo, grabado, estado) "
+                "VALUES (?, ?, 'pendiente')",
+                (nombre, fecha_del_nombre_audio(ruta)),
+            )
+    con.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS audio_archivo_unico ON audio(archivo)"
+    )
+
+
 def preparar():
     """Crea el esquema y las semillas si hace falta. Idempotente."""
     nueva = not RUTA_DB.exists()
@@ -195,6 +298,7 @@ def preparar():
         con.executescript(ESQUEMA)
         con.execute("PRAGMA journal_mode = WAL")
         poner_al_dia(con)
+        reconciliar_audios(con)
         if nueva:
             for i, nombre in enumerate(CIRCULOS_DE_FABRICA):
                 con.execute(
@@ -620,9 +724,10 @@ def lista_personas(
     if busca.strip():
         patron = como(busca.strip())
         notas_halladas = con.execute(
-            "SELECT n.* FROM nota n WHERE n.texto LIKE ? ESCAPE '\\' "
+            "SELECT n.* FROM nota n WHERE "
+            "(n.texto LIKE ? ESCAPE '\\' OR n.resumen LIKE ? ESCAPE '\\') "
             "ORDER BY n.fecha DESC, n.id DESC LIMIT 50",
-            (patron,),
+            (patron, patron),
         ).fetchall()
         quienes = personas_de_notas(con, [n["id"] for n in notas_halladas])
         hechos_hallados = con.execute(
@@ -740,7 +845,7 @@ def lista_personas(
             ).fetchall()
         ]
         ultima = con.execute(
-            "SELECT n.fecha, n.canal, n.texto FROM nota n "
+            "SELECT n.fecha, n.canal, n.texto, n.resumen FROM nota n "
             "JOIN nota_persona np ON np.nota_id = n.id "
             "WHERE np.persona_id = ? "
             "ORDER BY n.fecha DESC, n.id DESC LIMIT 1",
@@ -1367,24 +1472,219 @@ def borrar_relacion(
 # 4. escribir nota
 # --------------------------------------------------------------------------
 
+AUDIOS_POR_PAGINA = 5
+
+
+def audios_disponibles(con, solo_pendientes=False):
+    """Devuelve sólo grabaciones que aún conservan su archivo en disco.
+
+    Una fila antigua sin archivo no se borra a escondidas: simplemente deja de
+    ofrecerse para escuchar o procesar. Así el archivo visible coincide con la
+    carpeta real sin convertir una lectura de pantalla en una acción destructiva.
+    """
+    condicion = " WHERE estado <> 'revisado'" if solo_pendientes else ""
+    filas = con.execute(
+        "SELECT * FROM audio" + condicion + " ORDER BY grabado DESC, id DESC"
+    ).fetchall()
+    return [
+        fila for fila in filas
+        if (CARPETA_AUDIOS / Path(fila["archivo"]).name).is_file()
+    ]
+
+
+def archivo_audios(con, pagina, base):
+    grabaciones = audios_disponibles(con)
+    paginas = max(1, -(-len(grabaciones) // AUDIOS_POR_PAGINA))
+    pagina = min(max(pagina, 1), paginas)
+    inicio = (pagina - 1) * AUDIOS_POR_PAGINA
+
+    def enlace(destino):
+        return f"{base}?audios_pagina={destino}&archivo=1#audios"
+
+    return {
+        "audios": grabaciones[inicio:inicio + AUDIOS_POR_PAGINA],
+        "audios_total": len(grabaciones),
+        "audios_pagina": pagina,
+        "audios_paginas": paginas,
+        "audios_anterior": enlace(pagina - 1) if pagina > 1 else None,
+        "audios_siguiente": enlace(pagina + 1) if pagina < paginas else None,
+        "volver_audios": enlace(pagina),
+    }
+
+
+ESTADO_AUDIO_VISIBLE = {
+    "pendiente": "Esperando transcripción",
+    "transcribiendo": "Transcribiendo",
+    "analisis_pendiente": "Esperando análisis",
+    "analizando": "Preparando el borrador",
+    "listo": "Listo para revisar",
+    "revisado": "Revisado",
+    "error_transcripcion": "No se pudo transcribir",
+    "error_analisis": "No se pudo preparar el borrador",
+}
+
+
+def audio_para_pantalla(con, audio_id):
+    audio = con.execute("SELECT * FROM audio WHERE id = ?", (audio_id,)).fetchone()
+    if audio is None:
+        return None
+    resultado = dict(audio)
+    try:
+        borrador = json.loads(audio["borrador"]) if audio["borrador"] else {}
+    except (TypeError, json.JSONDecodeError):
+        borrador = {}
+    personas_db = [dict(p) for p in con.execute(
+        "SELECT p.id, p.nombre, p.apodo, "
+        f"{NOMBRE_VISIBLE_SQL} AS nombre_visible, c.nombre AS circulo "
+        "FROM persona p LEFT JOIN circulo c ON c.id = p.circulo_id "
+        "ORDER BY nombre_visible COLLATE NOCASE, p.id"
+    )]
+    por_id = {p["id"]: p for p in personas_db}
+    bloques = []
+    for bloque in borrador.get("personas", []):
+        if not isinstance(bloque, dict) or bloque.get("confirmado"):
+            continue
+        copia = dict(bloque)
+        copia["persona"] = por_id.get(copia.get("persona_id"))
+        copia["candidatos_detalle"] = [
+            por_id[pid] for pid in copia.get("candidatos", []) if pid in por_id
+        ]
+        bloques.append(copia)
+    resultado.update({
+        "borrador_datos": borrador,
+        "bloques": bloques,
+        "personas": personas_db,
+        "estado_visible": ESTADO_AUDIO_VISIBLE.get(audio["estado"], audio["estado"]),
+        "trabajando": audio["estado"] in ESTADOS_TRABAJANDO,
+    })
+    return resultado
+
+
 @app.get("/nota")
-def pantalla_nota(request: Request, volver: str = "/", persona: str = ""):
+def pantalla_nota(
+    request: Request, volver: str = "/", persona: str = "",
+    audios_pagina: int = 1, archivo: str = "", audio: int = 0,
+):
     con = conexion()
     datos = {
         "fecha": hoy_iso(),
-        "texto": "",
-        "canal": "",
-        "editando": False,
-        "nota": None,
-        "canales": canales(con),
         "personas": con.execute(
             SELECT_PERSONA + ORDENES["ultima"]
         ).fetchall(),
-        "marcadas": [int(persona)] if persona.isdigit() else [],
+        "persona_inicial": int(persona) if persona.isdigit() else None,
+        "audios_pendientes": audios_disponibles(con, solo_pendientes=True),
+        "audio_inicial": audio,
+        "archivo_abierto": archivo == "1" or audios_pagina > 1,
         "volver": volver,
     }
+    datos.update(archivo_audios(con, audios_pagina, "/nota"))
     con.close()
-    return plantillas.TemplateResponse(request, "nota.html", datos)
+    return plantillas.TemplateResponse(request, "notas.html", datos)
+
+
+@app.get("/nota/audio/{audio_id}/proceso")
+def proceso_audio(request: Request, audio_id: int):
+    con = conexion()
+    audio = audio_para_pantalla(con, audio_id)
+    con.close()
+    if audio is None:
+        return Response(status_code=404)
+    return plantillas.TemplateResponse(
+        request, "_audio_proceso.html", {"audio_proceso": audio}
+    )
+
+
+@app.post("/nota/persona/{persona_id}")
+def guardar_captura_persona(
+    persona_id: int,
+    pendientes: list[str] = Form(default=[]),
+    preguntas: list[str] = Form(default=[]),
+    datos: list[str] = Form(default=[]),
+    quedada_fecha: str = Form(""),
+    quedada_canal: str = Form(""),
+    quedada_resumen: str = Form(""),
+    quedada_texto: str = Form(""),
+    audio_id: int = Form(0),
+    volver: str = Form("/nota#captura"),
+):
+    """Guarda un bloque de la captura manual, aislado de los demás.
+
+    Cada colección admite varias entradas. La quedada es una sola por bloque;
+    si sólo se ha escrito una de sus dos versiones, se usa también como
+    alternativa de la otra para no perder lo que la persona haya redactado.
+    """
+    pendientes = [texto.strip() for texto in pendientes if texto.strip()]
+    preguntas = [texto.strip() for texto in preguntas if texto.strip()]
+    datos = [texto.strip() for texto in datos if texto.strip()]
+    resumen = quedada_resumen.strip()
+    texto = quedada_texto.strip()
+    canal = quedada_canal.strip()
+
+    con = conexion()
+    existe = con.execute(
+        "SELECT 1 FROM persona WHERE id = ?", (persona_id,)
+    ).fetchone()
+    audio_existe = audio_id and con.execute(
+        "SELECT 1 FROM audio WHERE id = ?", (audio_id,)
+    ).fetchone()
+    if existe is None:
+        con.close()
+        return vuelve(volver, "/nota#captura")
+
+    with con:
+        for contenido in pendientes:
+            cur = con.execute(
+                "INSERT INTO hilo (persona_id, texto, abierto_desde, tipo) "
+                "VALUES (?, ?, ?, 'pendiente')",
+                (persona_id, contenido, hoy_iso()),
+            )
+            if audio_existe:
+                con.execute(
+                    "INSERT OR IGNORE INTO audio_registro VALUES (?, 'hilo', ?, ?)",
+                    (audio_id, cur.lastrowid, persona_id),
+                )
+        for contenido in preguntas:
+            cur = con.execute(
+                "INSERT INTO hilo (persona_id, texto, abierto_desde, tipo) "
+                "VALUES (?, ?, ?, 'preguntar')",
+                (persona_id, contenido, hoy_iso()),
+            )
+            if audio_existe:
+                con.execute(
+                    "INSERT OR IGNORE INTO audio_registro VALUES (?, 'hilo', ?, ?)",
+                    (audio_id, cur.lastrowid, persona_id),
+                )
+        for contenido in datos:
+            cur = con.execute(
+                "INSERT INTO hecho (persona_id, texto, creado) VALUES (?, ?, ?)",
+                (persona_id, contenido, ahora_iso()),
+            )
+            if audio_existe:
+                con.execute(
+                    "INSERT OR IGNORE INTO audio_registro VALUES (?, 'hecho', ?, ?)",
+                    (audio_id, cur.lastrowid, persona_id),
+                )
+        if resumen or texto:
+            try:
+                fecha = date.fromisoformat(quedada_fecha.strip()).isoformat()
+            except ValueError:
+                fecha = hoy_iso()
+            cur = con.execute(
+                "INSERT INTO nota (fecha, canal, texto, resumen, creada) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (fecha, canal, texto or resumen, resumen or texto, ahora_iso()),
+            )
+            con.execute(
+                "INSERT INTO nota_persona (nota_id, persona_id) VALUES (?, ?)",
+                (cur.lastrowid, persona_id),
+            )
+            if audio_existe:
+                con.execute(
+                    "INSERT OR IGNORE INTO audio_registro VALUES (?, 'nota', ?, ?)",
+                    (audio_id, cur.lastrowid, persona_id),
+                )
+    con.close()
+    return vuelve(volver, "/nota#captura")
 
 
 @app.get("/nota/{nota_id}")
@@ -1402,6 +1702,7 @@ def pantalla_editar_nota(request: Request, nota_id: int, volver: str = "/"):
     datos = {
         "fecha": nota["fecha"],
         "texto": nota["texto"],
+        "resumen": nota["resumen"] or "",
         "canal": nota["canal"] or "",
         "editando": True,
         "nota": nota,
@@ -1419,6 +1720,7 @@ def pantalla_editar_nota(request: Request, nota_id: int, volver: str = "/"):
 @app.post("/nota")
 def guardar_nota(
     texto: str = Form(""), fecha: str = Form(""), canal: str = Form(""),
+    resumen: str = Form(""),
     personas: list[int] = Form(default=[]), personas_nuevas: str = Form(""),
     volver: str = Form("/"),
 ):
@@ -1433,8 +1735,9 @@ def guardar_nota(
     con = conexion()
     with con:
         cur = con.execute(
-            "INSERT INTO nota (fecha, canal, texto, creada) VALUES (?, ?, ?, ?)",
-            (fecha, canal.strip(), texto, ahora_iso()),
+            "INSERT INTO nota (fecha, canal, texto, resumen, creada) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (fecha, canal.strip(), texto, resumen.strip(), ahora_iso()),
         )
         nota_id = cur.lastrowid
 
@@ -1459,6 +1762,7 @@ def guardar_nota(
 def editar_nota(
     nota_id: int,
     texto: str = Form(""),
+    resumen: str = Form(""),
     fecha: str = Form(""),
     canal: str = Form(""),
     personas: list[int] = Form(default=[]),
@@ -1483,8 +1787,9 @@ def editar_nota(
 
     with con:
         con.execute(
-            "UPDATE nota SET fecha = ?, canal = ?, texto = ? WHERE id = ?",
-            (fecha, canal.strip(), texto, nota_id),
+            "UPDATE nota SET fecha = ?, canal = ?, texto = ?, resumen = ? "
+            "WHERE id = ?",
+            (fecha, canal.strip(), texto, resumen.strip(), nota_id),
         )
         con.execute("DELETE FROM nota_persona WHERE nota_id = ?", (nota_id,))
 
@@ -1519,13 +1824,944 @@ def borrar_nota(nota_id: int, volver: str = Form("/")):
 
 
 # --------------------------------------------------------------------------
-# captura por voz (paso 1: sólo grabar, subir y guardar)
-#
-# El móvil graba con MediaRecorder y sube el audio por fetch. Aquí se guarda
-# como archivo suelto en audios/ y se anota una fila que lo nombra. Nada de
-# transcripción ni de IA todavía: el estado es siempre 'pendiente'. Ninguna
-# se borra sola; el borrado es manual desde la lista.
+# captura por voz: transcripción local y borrador estructurado local
 # --------------------------------------------------------------------------
+
+ESTADOS_TRABAJANDO = ("pendiente", "transcribiendo", "analisis_pendiente", "analizando")
+_aviso_modelos = threading.Event()
+_hilo_modelos = None
+_whisper = None
+
+
+def contexto_para_qwen(con):
+    """La libreta existente es el contexto: nombres, apodos, círculos y red.
+
+    No se mandan fotos, notas ni otros datos privados que no ayudan a resolver
+    quién es quién. Todo permanece en la máquina (Ollama escucha en localhost).
+    """
+    personas = [dict(f) for f in con.execute(
+        "SELECT p.id, p.nombre, p.apodo, c.nombre AS circulo, "
+        "CASE WHEN LOWER(TRIM(COALESCE(c.nombre, ''))) = 'yo' THEN 1 ELSE 0 END AS es_yo "
+        "FROM persona p LEFT JOIN circulo c ON c.id = p.circulo_id ORDER BY p.id"
+    )]
+    relaciones = []
+    for f in con.execute(
+        "SELECT persona_a, persona_b, etiqueta, etiqueta_inversa FROM relacion"
+    ):
+        relaciones.append({
+            "desde": f["persona_a"], "hacia": f["persona_b"],
+            "papel": f["etiqueta"],
+        })
+        relaciones.append({
+            "desde": f["persona_b"], "hacia": f["persona_a"],
+            "papel": f["etiqueta_inversa"] or f["etiqueta"],
+        })
+    return {"personas": personas, "relaciones": relaciones}
+
+
+def contrato_qwen():
+    texto = {"type": "string"}
+    quedada = {
+        "anyOf": [
+            {"type": "null"},
+            {
+                "type": "object",
+                "properties": {
+                    "fecha": texto, "canal": texto, "resumen": texto, "texto": texto,
+                },
+                "required": ["fecha", "canal", "resumen", "texto"],
+                "additionalProperties": False,
+            },
+        ]
+    }
+    return {
+        "type": "object",
+        "properties": {
+            "version": {"type": "integer"},
+            "personas": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "clave": texto,
+                        "mencion": texto,
+                        "persona_id": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+                        "persona_dudosa": {"type": "boolean"},
+                        "candidatos": {"type": "array", "items": {"type": "integer"}},
+                        "pendientes": {"type": "array", "items": texto},
+                        "preguntas": {"type": "array", "items": texto},
+                        "quedada": quedada,
+                        "datos": {"type": "array", "items": texto},
+                    },
+                    "required": [
+                        "clave", "mencion", "persona_id", "persona_dudosa",
+                        "candidatos", "pendientes", "preguntas", "quedada", "datos",
+                    ],
+                    "additionalProperties": False,
+                },
+            },
+            "sin_asignar": {"type": "array", "items": texto},
+            "avisos": {"type": "array", "items": texto},
+        },
+        "required": ["version", "personas", "sin_asignar", "avisos"],
+        "additionalProperties": False,
+    }
+
+
+def _texto_modelo(valor):
+    import unicodedata
+    return unicodedata.normalize("NFC", str(valor or "")) \
+        .replace("ń", "ñ").replace("Ń", "Ñ").strip()
+
+
+def _lista_textos(valor):
+    if not isinstance(valor, list):
+        return []
+    salida = []
+    for texto in valor:
+        limpio = _texto_modelo(texto)
+        if limpio and limpio not in salida:
+            salida.append(limpio)
+    return salida
+
+
+def _madre_de_yo(contexto):
+    ids_yo = {p["id"] for p in contexto["personas"] if p["es_yo"]}
+    candidatas = {
+        r["hacia"] for r in contexto["relaciones"]
+        if r["desde"] in ids_yo and "madre" in (r["papel"] or "").lower()
+    }
+    return next(iter(candidatas)) if len(candidatas) == 1 else None
+
+
+def _nombre_clave(texto):
+    import unicodedata
+    limpio = unicodedata.normalize("NFD", str(texto or "").lower())
+    limpio = "".join(c for c in limpio if unicodedata.category(c) != "Mn")
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", limpio).split())
+
+
+def _fecha_dicha(fecha):
+    texto = f"{fecha.day} de {MESES[fecha.month - 1]}"
+    return texto if fecha.year == date.today().year else f"{texto} de {fecha.year}"
+
+
+def corregir_dia_del_calendario(texto, grabado):
+    """Un «viernes 5» imposible se ajusta al viernes cercano real."""
+    try:
+        base = date.fromisoformat(str(grabado)[:10])
+    except ValueError:
+        return texto
+    dias = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+    meses = {nombre: indice + 1 for indice, nombre in enumerate(MESES)}
+    patron = re.compile(
+        rf"\b({'|'.join(dias)})\s+(\d{{1,2}})\s+de\s+({'|'.join(MESES)})\b",
+        re.IGNORECASE,
+    )
+
+    def corregir(coincidencia):
+        nombre_dia = coincidencia.group(1).lower()
+        numero = int(coincidencia.group(2))
+        nombre_mes = coincidencia.group(3).lower()
+        try:
+            dicha = date(base.year, meses[nombre_mes], numero)
+        except ValueError:
+            return coincidencia.group(0)
+        esperado = dias.index(nombre_dia)
+        if dicha.weekday() == esperado:
+            return coincidencia.group(0)
+        opciones = [
+            date.fromordinal(base.toordinal() + salto)
+            for salto in range(-7, 29)
+        ]
+        opciones = [d for d in opciones if d.month == dicha.month and d.weekday() == esperado]
+        if not opciones:
+            return coincidencia.group(0)
+        correcta = min(opciones, key=lambda d: abs(d.day - numero))
+        return f"{coincidencia.group(1)} {correcta.day} de {nombre_mes}"
+
+    return patron.sub(corregir, texto)
+
+
+def resolver_fechas_relativas(texto, grabado):
+    """Resuelve referencias inequívocas; las ambiguas siguen visibles."""
+    try:
+        base = date.fromisoformat(str(grabado)[:10])
+    except ValueError:
+        return texto
+    resultado = texto
+    dias = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+    for indice, nombre in enumerate(dias):
+        salto = (indice - base.weekday()) % 7
+        destino = date.fromordinal(base.toordinal() + salto)
+        resultado = re.sub(
+            rf"\beste\s+{nombre}\b", f"el {nombre} {_fecha_dicha(destino)}",
+            resultado, flags=re.IGNORECASE,
+        )
+    manana = date.fromordinal(base.toordinal() + 1)
+    resultado = re.sub(
+        r"(?<!la )\bmañana\b", f"el {_fecha_dicha(manana)}", resultado,
+        flags=re.IGNORECASE,
+    )
+    dias = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+    ayer = date.fromordinal(base.toordinal() - 1)
+    resultado = re.sub(
+        r"\bayer\b", f"el {dias[ayer.weekday()]} {_fecha_dicha(ayer)}",
+        resultado, flags=re.IGNORECASE,
+    )
+    resultado = re.sub(
+        r"\bhoy\b", f"el {dias[base.weekday()]} {_fecha_dicha(base)}",
+        resultado, flags=re.IGNORECASE,
+    )
+    def completar_dia(coincidencia):
+        numero = int(coincidencia.group(1))
+        opciones = [
+            date.fromordinal(base.toordinal() + salto)
+            for salto in range(0, 32)
+            if date.fromordinal(base.toordinal() + salto).day == numero
+        ]
+        if not opciones:
+            return coincidencia.group(0)
+        destino = opciones[0]
+        return f"el {dias[destino.weekday()]} {_fecha_dicha(destino)}"
+
+    resultado = re.sub(
+        r"\bel\s+(\d{1,2})\b(?!\s+de)", completar_dia, resultado,
+        flags=re.IGNORECASE,
+    )
+    return corregir_dia_del_calendario(resultado, grabado)
+
+
+def quitar_nombre_repetido(texto, persona):
+    resultado = texto.strip()
+    nombres = sorted(
+        {n.strip() for n in (persona.get("nombre"), persona.get("apodo")) if n and n.strip()},
+        key=len, reverse=True,
+    )
+    for nombre in nombres:
+        nuevo = re.sub(
+            rf"^{re.escape(nombre)}\s*[,;:]?\s+", "", resultado,
+            count=1, flags=re.IGNORECASE,
+        )
+        if nuevo != resultado:
+            resultado = nuevo[:1].upper() + nuevo[1:]
+            break
+    return resultado
+
+
+def dato_es_temporal(texto):
+    """Último cortafuegos: un plan o compra puntual nunca es un Dato estable."""
+    compra = re.search(r"\bcompr\w*\b", texto, flags=re.IGNORECASE)
+    compra_importante = re.search(
+        r"\b(coche|casa|piso|vivienda)\b", texto, flags=re.IGNORECASE
+    )
+    if compra:
+        return not compra_importante
+    patron = (
+        r"\b(viajará|viaja(?:rá)?\s+a|se\s+va\s+a|se\s+irá|saldrá|llegará|"
+        r"regresará|volverá|dejará|ha\s+vuelto|volvió|regresó|"
+        r"está\s+de\s+vacaciones|"
+        r"se\s+mudará|tiene\s+una\s+cita|tiene\s+un\s+examen)\b"
+    )
+    return bool(re.search(patron, texto, flags=re.IGNORECASE))
+
+
+def pregunta_es_trivial(texto):
+    if re.search(r"^¿?si\s+necesita\s+ayuda\b", texto, re.IGNORECASE):
+        return True
+    compra = re.search(r"\b(compr\w*|tienda|vestido\w*|ropa)\b", texto, re.IGNORECASE)
+    importante = re.search(r"\b(casa|piso|vivienda|coche|trabajo)\b", texto, re.IGNORECASE)
+    return bool(compra and not importante)
+
+
+def naturalizar_pregunta(pregunta):
+    """Completa «Preguntar por» con un asunto natural, no con otra pregunta."""
+    pregunta = pregunta.strip().lstrip("¿").rstrip("?").strip()
+    pregunta = re.sub(
+        r"\s+(?:del|el)(?:\s+(?:lunes|martes|miércoles|jueves|viernes|sábado|domingo))?"
+        r"\s+\d{1,2}.*$", "", pregunta,
+        flags=re.IGNORECASE,
+    ).rstrip(" ,.;:")
+    coincidencia = re.match(
+        r"^cómo\s+le\s+va\s+con\s+((?:el|la|los|las)\s+.+?)(?:\s+que\s+.+)?$",
+        pregunta, flags=re.IGNORECASE,
+    )
+    if coincidencia:
+        pregunta = coincidencia.group(1)
+    else:
+        coincidencia = re.match(
+            r"^cómo\s+le\s+(?:va|fue|ha\s+ido)\s+(?:en|con)\s+(su\s+.+)$",
+            pregunta, flags=re.IGNORECASE,
+        )
+        if coincidencia:
+            pregunta = coincidencia.group(1)
+    coincidencia = re.match(
+        r"^qué\s+tal\s+(?:le\s+)?(?:fue|ha\s+ido|va)\s+"
+        r"((?:el|la|los|las)\s+.+)$",
+        pregunta, flags=re.IGNORECASE,
+    )
+    if coincidencia:
+        pregunta = coincidencia.group(1)
+    coincidencia = re.match(
+        r"^qué\s+planes\s+(?:tiene|tienes)\s+durante\s+(?:sus|tus|las)\s+(.+)$",
+        pregunta, flags=re.IGNORECASE,
+    )
+    if coincidencia:
+        pregunta = f"Las {coincidencia.group(1)}"
+    coincidencia = re.match(
+        r"^cómo\s+le\s+va\s+en\s+((?:el|la|los|las)\s+.+)$",
+        pregunta, flags=re.IGNORECASE,
+    )
+    if coincidencia:
+        pregunta = coincidencia.group(1)
+    coincidencia = re.match(
+        r"^qué\s+hizo\s+en\s+((?:el|la|los|las)\s+.+)$",
+        pregunta, flags=re.IGNORECASE,
+    )
+    if coincidencia:
+        pregunta = coincidencia.group(1)
+    pregunta = re.sub(
+        r"^cuándo\s+vuelve\s+a\s+trabajar$", "Las vacaciones",
+        pregunta, count=1, flags=re.IGNORECASE,
+    )
+    pregunta = re.sub(
+        r"^qué\s+planes\s+(?:tiene|tienes)\s+en\s+(?:sus\s+|las\s+)?vacaciones$",
+        "Las vacaciones", pregunta, count=1, flags=re.IGNORECASE,
+    )
+    pregunta = re.sub(
+        r"^qué\s+tal\s+(?:el\s+)?viaje\b", "El viaje",
+        pregunta, count=1, flags=re.IGNORECASE,
+    )
+    pregunta = re.sub(
+        r"^cuándo\s+(?:terminan|acaban)\s+sus\s+", "Las ",
+        pregunta, count=1, flags=re.IGNORECASE,
+    )
+    pregunta = pregunta[:1].upper() + pregunta[1:] if pregunta else pregunta
+    return pregunta
+
+
+def naturalizar_relato(texto):
+    """Mantiene concordancia de pasado en el discurso indirecto."""
+    texto = re.sub(
+        r"\b((?:me\s+)?(?:comentó|contó|dijo)|también\s+mencionó)\s+que\s+se\s+ha\s+comprado\b",
+        lambda m: f"{m.group(1)} que se había comprado",
+        texto, flags=re.IGNORECASE,
+    )
+    texto = re.sub(r"^se\s+habló\s+de\b", "Hablamos de", texto, flags=re.IGNORECASE)
+    texto = re.sub(
+        r"\bdurante\s+la\s+conversación,?\s+se\s+mencionó\s+que\b",
+        "También hablamos de que", texto, flags=re.IGNORECASE,
+    )
+    texto = re.sub(
+        r"\bfinalmente,?\s+se\s+tomó\s+algo\b",
+        "Al final estuvimos tomando algo", texto, flags=re.IGNORECASE,
+    )
+    return texto
+
+
+def naturalizar_resumen(texto):
+    """La ficha compacta recuerda la conversación sin convertirse en agenda."""
+    dias = "lunes|martes|miércoles|jueves|viernes|sábado|domingo"
+    meses = "|".join(MESES)
+    texto = re.sub(
+        rf"\s+(?:del|el)(?:\s+(?:{dias}))?\s+\d{{1,2}}\s+de\s+(?:{meses})",
+        "", texto, flags=re.IGNORECASE,
+    )
+    texto = re.sub(
+        r"^conversación\s+sobre\s+el\b", "Hablamos del", texto,
+        count=1, flags=re.IGNORECASE,
+    )
+    texto = re.sub(
+        r"^conversación\s+sobre\b", "Hablamos de", texto,
+        count=1, flags=re.IGNORECASE,
+    )
+    texto = re.sub(
+        r"\by\s+actualizaciones\s+personales\b",
+        "y de algunas novedades personales", texto, flags=re.IGNORECASE,
+    )
+    return texto
+
+
+def normalizar_canal(canal):
+    """Un lugar concreto pertenece al relato; el canal es cómo coincidieron."""
+    if re.search(
+        r"\b(piscina|plaza|casa|bar|restaurante|calle|parque|oficina)\b",
+        canal, flags=re.IGNORECASE,
+    ):
+        return "En persona"
+    return canal
+
+
+def participantes_explicitos(transcripcion, contexto):
+    """Extrae una enumeración inequívoca del tipo «quedamos A, B y yo»."""
+    coincidencia = re.search(
+        r"\bquedamos\s+(.+?)(?=\s+en\s+|\s+y\s+(?:estuv|habl|tom)|[.;])",
+        transcripcion or "", flags=re.IGNORECASE,
+    )
+    if not coincidencia:
+        return None
+    tramo = _nombre_clave(coincidencia.group(1))
+    encontrados = set()
+    for persona in contexto["personas"]:
+        if persona.get("es_yo"):
+            continue
+        for nombre in (persona.get("nombre"), persona.get("apodo")):
+            clave = _nombre_clave(nombre)
+            if clave and re.search(rf"\b{re.escape(clave)}\b", tramo):
+                encontrados.add(persona["id"])
+                break
+    return encontrados or None
+
+
+def persona_mencionada_univoca(mencion, contexto):
+    """Un nombre o apodo exacto pesa más que cualquier id imaginado por Qwen."""
+    partes = {
+        _nombre_clave(parte) for parte in re.split(r"[/,]", mencion or "")
+        if _nombre_clave(parte)
+    }
+    ids = set()
+    for persona in contexto["personas"]:
+        for nombre in (persona.get("nombre"), persona.get("apodo")):
+            if _nombre_clave(nombre) in partes:
+                ids.add(persona["id"])
+    return next(iter(ids)) if len(ids) == 1 else None
+
+
+def completar_fecha_suelta(resumen, texto_completo, grabado):
+    try:
+        base = date.fromisoformat(str(grabado)[:10])
+    except ValueError:
+        return resumen
+    meses = "|".join(MESES)
+    dias_semana = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+    for dia, mes in re.findall(
+        rf"\b(\d{{1,2}})\s+de\s+({meses})\b", texto_completo,
+        flags=re.IGNORECASE,
+    ):
+        fecha = date(base.year, MESES.index(mes.lower()) + 1, int(dia))
+        dicho = f"el {dias_semana[fecha.weekday()]} {fecha.day} de {mes.lower()}"
+        resumen = re.sub(
+            rf"\bel\s+{int(dia)}\b(?!\s+de)", dicho, resumen,
+            flags=re.IGNORECASE,
+        )
+    return resumen
+
+
+def pulir_contenido_personas(personas, por_id, grabado):
+    for bloque in personas:
+        persona = por_id.get(bloque.get("persona_id"))
+        if bloque.get("quedada"):
+            for campo in ("resumen", "texto"):
+                texto = bloque["quedada"].get(campo, "")
+                if campo == "texto":
+                    texto = resolver_fechas_relativas(texto, grabado)
+                if persona:
+                    texto = quitar_nombre_repetido(texto, persona)
+                if campo == "texto":
+                    texto = naturalizar_relato(texto)
+                else:
+                    texto = naturalizar_resumen(texto)
+                texto = texto[:1].upper() + texto[1:] if texto else texto
+                if campo == "texto" and texto and texto[-1] not in ".!?":
+                    texto += "."
+                bloque["quedada"][campo] = texto
+            bloque["quedada"]["resumen"] = completar_fecha_suelta(
+                bloque["quedada"]["resumen"], bloque["quedada"]["texto"], grabado
+            )
+        for campo in ("pendientes", "preguntas", "datos"):
+            limpios = []
+            for texto in bloque.get(campo, []):
+                texto = resolver_fechas_relativas(texto, grabado)
+                if persona:
+                    texto = quitar_nombre_repetido(texto, persona)
+                if campo == "datos" and dato_es_temporal(texto):
+                    continue
+                if campo == "preguntas":
+                    if pregunta_es_trivial(texto):
+                        continue
+                    texto = naturalizar_pregunta(texto)
+                if texto and texto not in limpios:
+                    limpios.append(texto)
+            bloque[campo] = limpios
+
+
+def ajustar_identidades_por_grupo(personas, contexto):
+    """Corrige homónimos por conexiones; los empates quedan para revisión."""
+    nombres = {}
+    for persona in contexto["personas"]:
+        for nombre in (persona.get("nombre"), persona.get("apodo")):
+            clave = _nombre_clave(nombre)
+            if clave:
+                nombres.setdefault(clave, set()).add(persona["id"])
+    conexiones = set()
+    for relacion in contexto["relaciones"]:
+        conexiones.add(frozenset((relacion["desde"], relacion["hacia"])))
+
+    for bloque in personas:
+        trozos = [_nombre_clave(t) for t in re.split(r"[/,]", bloque.get("mencion", ""))]
+        por_nombre = set()
+        for trozo in trozos:
+            por_nombre.update(nombres.get(trozo, set()))
+        candidatos = set(bloque.get("candidatos", [])) | por_nombre
+        if len(candidatos) <= 1:
+            continue
+        otros = {
+            otro.get("persona_id") for otro in personas
+            if otro is not bloque and otro.get("persona_id")
+        }
+        puntuaciones = {
+            candidato: sum(
+                frozenset((candidato, otro)) in conexiones for otro in otros
+            )
+            for candidato in candidatos
+        }
+        orden = sorted(puntuaciones, key=lambda pid: puntuaciones[pid], reverse=True)
+        mejor = orden[0]
+        segundo = puntuaciones[orden[1]]
+        if puntuaciones[mejor] > segundo and puntuaciones[mejor] > 0:
+            bloque["persona_id"] = mejor
+            bloque["persona_dudosa"] = False
+        else:
+            # Qwen puede proponer una candidata, pero sin una ventaja contextual
+            # visible no se guarda hasta que la persona usuaria lo confirme.
+            bloque["persona_dudosa"] = True
+        bloque["candidatos"] = sorted(
+            candidatos, key=lambda pid: (-puntuaciones[pid], pid)
+        )
+
+
+def normalizar_borrador(bruto, contexto, grabado, anterior=None, transcripcion=""):
+    """Acepta sólo ids reales y conserva lo que ya se confirmó en una ficha."""
+    anterior = anterior if isinstance(anterior, dict) else {}
+    por_id = {p["id"]: p for p in contexto["personas"]}
+    confirmadas = [
+        p for p in anterior.get("personas", [])
+        if isinstance(p, dict) and p.get("confirmado")
+    ]
+    ids_confirmados = {p.get("persona_id") for p in confirmadas}
+    madre = _madre_de_yo(contexto)
+    participantes = participantes_explicitos(transcripcion, contexto)
+    personas = []
+    claves = set()
+    for indice, entrada in enumerate((bruto or {}).get("personas", [])):
+        if not isinstance(entrada, dict):
+            continue
+        mencion = _texto_modelo(entrada.get("mencion"))
+        persona_id = entrada.get("persona_id")
+        candidatos = [
+            pid for pid in entrada.get("candidatos", [])
+            if isinstance(pid, int) and pid in por_id
+        ]
+        # Esta relación explícita es más fuerte que una diferencia ortográfica:
+        # "mi madre", Carmela y Karmela no pueden convertirse en dos personas.
+        if madre and "mi madre" in mencion.lower():
+            persona_id, candidatos = madre, [madre]
+            dudosa = False
+        else:
+            mencion_univoca = persona_mencionada_univoca(mencion, contexto)
+            if mencion_univoca is not None:
+                persona_id, candidatos, dudosa = mencion_univoca, [mencion_univoca], False
+            else:
+                persona_id = persona_id if persona_id in por_id else None
+                dudosa = bool(entrada.get("persona_dudosa")) or persona_id is None
+        candidatos = [pid for pid in candidatos if not por_id[pid].get("es_yo")]
+        # La libreta registra a las otras personas. Quien habla aporta el punto
+        # de vista, pero nunca recibe un bloque propio ni una ficha de diario.
+        if persona_id is not None and por_id[persona_id].get("es_yo"):
+            continue
+        if persona_id in ids_confirmados:
+            continue
+        if persona_id is not None and persona_id not in candidatos:
+            candidatos.insert(0, persona_id)
+        clave = re.sub(r"[^a-zA-Z0-9_-]", "-", str(entrada.get("clave") or ""))
+        clave = clave.strip("-") or f"persona-{indice + 1}"
+        while clave in claves:
+            clave += "-otra"
+        claves.add(clave)
+        quedada_bruta = entrada.get("quedada")
+        quedada = None
+        if isinstance(quedada_bruta, dict):
+            # Una nota grabada después puede comenzar «ayer quedamos». Sólo se
+            # acepta una fecha propuesta pasada y cercana; una fecha futura
+            # mencionada dentro sigue siendo contenido, no el día del encuentro.
+            fecha = str(grabado)[:10]
+            try:
+                base = date.fromisoformat(fecha)
+                propuesta = date.fromisoformat(_texto_modelo(quedada_bruta.get("fecha")))
+                if propuesta <= base and (base - propuesta).days <= 31:
+                    fecha = propuesta.isoformat()
+            except ValueError:
+                pass
+            resumen = _texto_modelo(quedada_bruta.get("resumen"))
+            if len(resumen) > 160:
+                resumen = resumen[:157].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
+            quedada = {
+                "fecha": fecha,
+                "canal": normalizar_canal(_texto_modelo(quedada_bruta.get("canal"))),
+                "resumen": resumen,
+                "texto": _texto_modelo(quedada_bruta.get("texto")),
+            }
+            if participantes is not None and persona_id not in participantes:
+                quedada = None
+        nueva = {
+            "clave": clave, "mencion": mencion, "persona_id": persona_id,
+            "persona_dudosa": dudosa, "candidatos": list(dict.fromkeys(candidatos)),
+            "pendientes": _lista_textos(entrada.get("pendientes")),
+            "preguntas": _lista_textos(entrada.get("preguntas")),
+            "quedada": quedada, "datos": _lista_textos(entrada.get("datos")),
+            "confirmado": False,
+        }
+        if not any(nueva[campo] for campo in ("pendientes", "preguntas", "datos")) \
+                and nueva["quedada"] is None:
+            continue
+        # Qwen puede nombrar a la misma persona de dos maneras. Se funden en un
+        # solo bloque siempre que la identidad resuelta sea la misma.
+        existente = next((p for p in personas if persona_id and p["persona_id"] == persona_id), None)
+        if existente:
+            for campo in ("pendientes", "preguntas", "datos"):
+                existente[campo] = list(dict.fromkeys(existente[campo] + nueva[campo]))
+            if existente["quedada"] is None:
+                existente["quedada"] = quedada
+            existente["persona_dudosa"] = existente["persona_dudosa"] or dudosa
+            existente["candidatos"] = list(dict.fromkeys(existente["candidatos"] + candidatos))
+            existente["mencion"] = " / ".join(filter(None, dict.fromkeys([existente["mencion"], mencion])))
+        else:
+            personas.append(nueva)
+    ajustar_identidades_por_grupo(personas, contexto)
+    pulir_contenido_personas(personas, por_id, grabado)
+    quedadas = [p["quedada"] for p in personas if p.get("quedada")]
+    if quedadas:
+        comun = max(quedadas, key=lambda q: len(q.get("texto", "")))
+        for bloque in personas:
+            if bloque.get("quedada"):
+                bloque["quedada"] = dict(comun)
+    asignado = " ".join(
+        texto for p in personas for texto in (
+            p.get("pendientes", []) + p.get("preguntas", []) + p.get("datos", []) +
+            ([p["quedada"]["resumen"], p["quedada"]["texto"]] if p.get("quedada") else [])
+        )
+    ).lower()
+    sin_asignar = [
+        texto for texto in _lista_textos((bruto or {}).get("sin_asignar"))
+        if texto.lower() not in asignado
+    ]
+    return {
+        "version": CONTRATO_BORRADOR,
+        "personas": confirmadas + personas,
+        "sin_asignar": sin_asignar,
+        "avisos": _lista_textos((bruto or {}).get("avisos")),
+        "quedadas_guardadas": anterior.get("quedadas_guardadas", {}),
+    }
+
+
+def _solicitar_json_qwen_una_vez(mensajes, formato, pensar):
+    max_tokens = (
+        MAX_TOKENS_QWEN_PENSANDO if pensar else MAX_TOKENS_QWEN_DIRECTO
+    )
+    peticion = {
+        "model": MODELO_QWEN,
+        "stream": False,
+        "think": pensar,
+        "format": formato or contrato_qwen(),
+        "options": {"temperature": 0, "num_predict": max_tokens},
+        "messages": mensajes,
+    }
+    req = urllib.request.Request(
+        OLLAMA_CHAT,
+        data=json.dumps(peticion, ensure_ascii=False).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=ESPERA_QWEN_SEGUNDOS) as respuesta:
+        cuerpo = json.loads(respuesta.read().decode("utf-8"))
+    contenido = cuerpo.get("message", {}).get("content", "")
+    if not isinstance(contenido, str) or not contenido.strip():
+        raise ValueError("Qwen no devolvió contenido JSON")
+    return json.loads(contenido)
+
+
+def solicitar_json_qwen(mensajes, formato=None, pensar=True):
+    """Pide JSON acotado y abandona el razonamiento si se queda desbocado."""
+    try:
+        return _solicitar_json_qwen_una_vez(mensajes, formato, pensar)
+    except Exception:
+        if not pensar:
+            raise
+        try:
+            return _solicitar_json_qwen_una_vez(mensajes, formato, False)
+        except Exception as segundo_error:
+            raise RuntimeError(
+                "Qwen no devolvió un borrador válido tras el segundo intento"
+            ) from segundo_error
+
+
+def pedir_borrador_qwen(transcripcion, grabado, contexto, anterior=None):
+    confirmadas = [
+        {"persona_id": p.get("persona_id"), "mencion": p.get("mencion")}
+        for p in (anterior or {}).get("personas", []) if p.get("confirmado")
+    ]
+    instrucciones = """Devuelve únicamente el JSON pedido. La persona que habla es siempre la marcada es_yo.
+Tu trabajo no es resumir sin más: decide qué será útil recordar o preguntar en la próxima conversación y clasifícalo correctamente.
+Convierte la voz en bloques editables por persona existente; nunca inventes ni crees personas.
+
+REGLAS DE CLASIFICACIÓN:
+- pendientes: acciones concretas que debe hacer la persona es_yo por o para la otra persona. No incluyas acciones que hará la otra persona ni inventes compromisos.
+- preguntas: asuntos futuros o en evolución de la vida de la otra persona sobre los que tendría sentido interesarse después, aunque quien habla no diga literalmente «tengo que preguntar». El rótulo de la interfaz ya dice «Preguntar por», así que escribe sólo un asunto nominal breve, nunca una pregunta completa ni una frase de agenda. La fecha exacta pertenece al texto completo de la quedada; sólo inclúyela aquí si resulta imprescindible para distinguir dos asuntos iguales. No conviertas recados rutinarios, compras o visitas a tiendas en preguntas salvo petición explícita.
+- datos: hechos estables que seguirán siendo útiles dentro de meses. No metas planes temporales, viajes próximos, compras puntuales, detalles que sólo pertenecen a esta conversación ni el nombre de la propia persona.
+- quedada: registro adaptado del encuentro actual. Su fecha es fecha_grabacion salvo que la voz diga inequívocamente que el encuentro ocurrió antes; resuelve entonces esa fecha con el calendario. Una fecha futura mencionada como plan nunca es la fecha de la quedada. Sólo llevan esta quedada las personas que participaron en el encuentro, no quienes únicamente se nombran al hablar de un plan futuro. El canal describe cómo hablaron: usa «Llamada», «Mensaje», «Videollamada» o «En persona». Un lugar como una casa, una piscina o una plaza pertenece al relato y nunca es el canal. Si no se sabe, deja canal vacío.
+
+Cada bloque admite cero o más pendientes, preguntas y datos, y como máximo una quedada. Si una misma conversación incluye a varias personas, repite en sus bloques exactamente la misma quedada para que se guarde como un único encuentro compartido.
+La quedada necesita fecha ISO, canal, resumen claro de una sola línea (máximo 160 caracteres) y texto completo adaptado; no copies literalmente la transcripción. El resumen está dentro de la ficha de esa persona: no empieces repitiendo su nombre. Debe sonar a recuerdo natural, comenzar como una frase de conversación y emplear referencias temporales relativas. En el resumen están prohibidos fechas, días de la semana, horas y cronologías: esos detalles sólo pertenecen al texto completo. El texto completo sí conserva la precisión y usa discurso indirecto natural. Redacta siempre desde el punto de vista de quien habla, no como una ficha policial ni como un teletipo. Respeta el tiempo de cada hecho y no unas dos acciones distintas en una sola.
+
+FECHAS:
+Resuelve expresiones relativas con calendario_cercano y el tiempo verbal. El texto completo debe decir «viernes 7 de agosto», no sólo «el viernes», y «martes 11 de agosto», no sólo «el 11». El resumen puede decir «esa misma semana» porque se muestra junto a la fecha de la conversación. Las preguntas priorizan cómo hablarías con esa persona y normalmente omiten la fecha. Si de verdad no se puede resolver, no inventes: conserva la expresión y explica la duda en avisos.
+Una expresión como «luego por la tarde» sin otro día explícito continúa el día de la conversación, no un viaje futuro mencionado antes.
+
+Resuelve identidades usando nombre, apodo, pronunciación aproximada, relaciones, círculo y coherencia del grupo mencionado. Un grupo conectado pesa más que otra persona homónima sin relación con él.
+Las expresiones como «mi madre» se interpretan desde es_yo. Variantes como Carmela/Karmela y «mi madre» deben acabar en un solo bloque si son la misma persona.
+Si el contexto no basta, elige el id existente más probable, marca persona_dudosa=true e incluye candidatos razonables. No uses porcentajes.
+No copies nombres propios, lugares, hechos ni fechas de estas instrucciones: todo el contenido debe proceder de transcripcion y libreta.
+No vuelvas a producir información de ya_confirmados. No incluyas nunca a es_yo como destinataria: esta aplicación no es un diario de quien habla.
+Usa ortografía española correcta. Lo imposible de atribuir va en sin_asignar. Nunca repitas allí algo que ya esté dentro de un bloque."""
+    try:
+        fecha_base = date.fromisoformat(str(grabado)[:10])
+    except ValueError:
+        fecha_base = date.today()
+    dias_semana = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+    calendario = [
+        {
+            "iso": (fecha_base.fromordinal(fecha_base.toordinal() + salto)).isoformat(),
+            "dia": dias_semana[fecha_base.fromordinal(fecha_base.toordinal() + salto).weekday()],
+        }
+        for salto in range(-7, 22)
+    ]
+    contenido = {
+        "fecha_grabacion": str(grabado)[:10],
+        "calendario_cercano": calendario,
+        "libreta": contexto,
+        "ya_confirmados": confirmadas,
+        "transcripcion": transcripcion,
+    }
+    bruto = solicitar_json_qwen([
+        {"role": "system", "content": instrucciones},
+        {"role": "user", "content": json.dumps(contenido, ensure_ascii=False)},
+    ])
+    revision = """Audita y corrige la propuesta usando la transcripción y el calendario. Devuelve el contrato completo, no una explicación.
+Comprueba una por una estas condiciones:
+1. Todo acontecimiento futuro significativo de la otra persona genera un asunto nominal natural en preguntas, aunque no se pidiera explícitamente. Empezar un trabajo, una mudanza, un viaje o un cambio vital merece seguimiento. Como la interfaz ya muestra «Preguntar por», no redactes otra pregunta ni uses signos de interrogación. Una compra ya terminada va a Datos si es estable y relevante, pero no genera además una pregunta salvo que se mencione un problema. Omite fechas de agenda salvo que sean necesarias para distinguir asuntos. No incluyas compras rutinarias, tiendas o recados salvo petición explícita.
+2. pendientes sólo contiene acciones que debe hacer quien habla.
+3. datos sólo contiene hechos estables que seguirán siendo útiles dentro de seis meses. Elimina viajes, horarios, planes, compras y sucesos puntuales: ya quedan en la quedada.
+4. Resuelve la fecha real del encuentro: usa fecha_grabacion salvo que la transcripción diga claramente que ocurrió antes. Una fecha futura de un plan no puede convertirse en fecha de quedada. El canal es el medio («En persona», «Llamada», «Mensaje» o «Videollamada»), nunca el lugar concreto. Sólo asigna la quedada a quienes participaron en ese encuentro; una persona meramente mencionada no estuvo allí. Ningún resumen ni texto empieza repitiendo el nombre. El resumen es una frase humana de conversación, no una cronología telegráfica, y NO puede contener cifras, fechas, horas, meses ni días de la semana.
+5. El texto completo usa discurso indirecto natural desde quien habla y contiene las fechas exactas que sí pertenezcan al relato. No dejes referencias como «ayer», «hoy» ni un día del mes sin mes cuando el calendario permita resolverlas. Haz una lista mental de cada hecho explícito de la transcripción —personas, plan, transporte, fecha, compras, trabajo, horarios, regresos, vacaciones y lugar— y comprueba que todos siguen en el texto completo. Audita por separado el tiempo verbal de cada afirmación: lo ya ocurrido sigue en pasado y los planes siguen siendo planes. No fusiones acciones distintas. No pierdas información verdadera ni inventes otra; conserva también las dudas expresadas.
+6. Una misma persona no se duplica y sin_asignar no repite contenido ya clasificado. Elimina cualquier bloque cuya persona sea es_yo.
+7. No reutilices ningún ejemplo ni conocimiento de otras conversaciones: nombres, lugares, fechas y hechos deben aparecer literalmente o deducirse de esta transcripción."""
+    revisado = solicitar_json_qwen([
+        {"role": "system", "content": revision},
+        {"role": "user", "content": json.dumps({
+            "transcripcion": transcripcion,
+            "fecha_grabacion": str(grabado)[:10],
+            "calendario_cercano": calendario,
+            "propuesta": bruto,
+        }, ensure_ascii=False)},
+    ])
+    quedadas_revisadas = [
+        persona["quedada"] for persona in revisado.get("personas", [])
+        if isinstance(persona, dict) and isinstance(persona.get("quedada"), dict)
+    ]
+    if quedadas_revisadas:
+        quedadas_iniciales = [
+            persona["quedada"] for persona in bruto.get("personas", [])
+            if isinstance(persona, dict) and isinstance(persona.get("quedada"), dict)
+        ]
+        texto_schema = {"type": "string", "minLength": 1}
+        contrato_redaccion = {
+            "type": "object",
+            "properties": {"resumen": texto_schema, "texto": texto_schema},
+            "required": ["resumen", "texto"],
+            "additionalProperties": False,
+        }
+        contrato_hechos = {
+            "type": "object",
+            "properties": {
+                "hechos": {"type": "array", "items": texto_schema},
+            },
+            "required": ["hechos"],
+            "additionalProperties": False,
+        }
+        inventario = solicitar_json_qwen([
+            {
+                "role": "system",
+                "content": """Extrae todos los hechos explícitos de la transcripción, uno por elemento y sin resumirlos entre sí. No clasifiques ni redactes la quedada. Conserva por separado participantes del encuentro, personas sólo mencionadas, planes, acompañantes, transporte, fechas, horas, compras, trabajo, viajes pasados, vacaciones y lugares. Resuelve ayer, hoy y fechas cercanas con el calendario. No inventes nada.""",
+            },
+            {
+                "role": "user",
+                "content": json.dumps({
+                    "transcripcion": transcripcion,
+                    "fecha_grabacion": str(grabado)[:10],
+                    "calendario_cercano": calendario,
+                }, ensure_ascii=False),
+            },
+        ], formato=contrato_hechos, pensar=False)
+        redaccion = solicitar_json_qwen([
+            {
+                "role": "system",
+                "content": """Redacta únicamente el resumen y el texto completo de la quedada.
+El resumen es una sola frase natural de conversación, sin nombres repetidos, cifras, fechas, horas ni días de la semana.
+El texto completo está contado desde quien habla, con lenguaje natural y no como acta o transcripción literal. No lo resumas: adapta todo lo dicho. Antes de redactarlo, haz un inventario interno de todos los hechos explícitos de la transcripción y de la extracción inicial y comprueba que ninguno desaparece: quién participó, quién sólo fue mencionado, planes, acompañantes, transporte, fechas, horarios, cambios personales, viajes ya ocurridos y lugares. La propuesta revisada puede haber perdido detalles; recupéralos de la transcripción y de la extracción inicial. Resuelve fechas relativas con el calendario. Conserva dudas y no inventes hechos. Los ejemplos o conversaciones anteriores no son una fuente.""",
+            },
+            {
+                "role": "user",
+                "content": json.dumps({
+                    "transcripcion": transcripcion,
+                    "fecha_grabacion": str(grabado)[:10],
+                    "calendario_cercano": calendario,
+                    "inventario_de_hechos": inventario["hechos"],
+                    "extraccion_inicial": max(
+                        quedadas_iniciales, key=lambda q: len(q.get("texto", ""))
+                    ) if quedadas_iniciales else None,
+                    "redaccion_propuesta": max(
+                        quedadas_revisadas, key=lambda q: len(q.get("texto", ""))
+                    ),
+                }, ensure_ascii=False),
+            },
+        ], formato=contrato_redaccion, pensar=False)
+        for persona in revisado.get("personas", []):
+            if isinstance(persona, dict) and isinstance(persona.get("quedada"), dict):
+                persona["quedada"]["resumen"] = redaccion["resumen"]
+                persona["quedada"]["texto"] = redaccion["texto"]
+    return normalizar_borrador(
+        revisado, contexto, grabado, anterior, transcripcion=transcripcion
+    )
+
+
+def nombres_para_whisper(contexto):
+    nombres = []
+    for persona in contexto["personas"]:
+        for nombre in (persona.get("nombre"), persona.get("apodo")):
+            nombre = (nombre or "").strip()
+            if nombre and nombre not in nombres:
+                nombres.append(nombre)
+    return ", ".join(nombres)
+
+
+def transcribir_audio(ruta, contexto):
+    global _whisper
+    if _whisper is None:
+        from faster_whisper import WhisperModel
+        try:
+            _whisper = WhisperModel(MODELO_WHISPER, device="cuda", compute_type="float16")
+        except Exception:
+            _whisper = WhisperModel(MODELO_WHISPER, device="cpu", compute_type="int8")
+    nombres = nombres_para_whisper(contexto)
+    segmentos, _ = _whisper.transcribe(
+        str(ruta), language="es", vad_filter=True,
+        vad_parameters={"min_silence_duration_ms": 500},
+        condition_on_previous_text=False, hotwords=nombres, initial_prompt=nombres,
+    )
+    return " ".join(s.text.strip() for s in segmentos if s.text.strip()).strip()
+
+
+def _tomar_audio(estado, trabajando):
+    con = conexion()
+    with con:
+        fila = con.execute(
+            "SELECT * FROM audio WHERE estado = ? ORDER BY grabado, id LIMIT 1",
+            (estado,),
+        ).fetchone()
+        if fila:
+            con.execute(
+                "UPDATE audio SET estado = ?, error = NULL, actualizado = ? WHERE id = ?",
+                (trabajando, ahora_iso(), fila["id"]),
+            )
+    con.close()
+    return dict(fila) if fila else None
+
+
+def procesar_modelos():
+    while True:
+        _aviso_modelos.wait(2)
+        _aviso_modelos.clear()
+        while True:
+            audio = _tomar_audio("pendiente", "transcribiendo")
+            if audio:
+                try:
+                    con = conexion()
+                    contexto = contexto_para_qwen(con)
+                    con.close()
+                    ruta = CARPETA_AUDIOS / Path(audio["archivo"]).name
+                    texto = transcribir_audio(ruta, contexto)
+                    if not texto:
+                        raise ValueError("Whisper no encontró voz")
+                    con = conexion()
+                    with con:
+                        con.execute(
+                            "UPDATE audio SET transcripcion = ?, transcripcion_editada = 0, "
+                            "estado = 'analisis_pendiente', actualizado = ? "
+                            "WHERE id = ? AND estado = 'transcribiendo'",
+                            (texto, ahora_iso(), audio["id"]),
+                        )
+                    con.close()
+                except Exception as exc:
+                    con = conexion()
+                    with con:
+                        con.execute(
+                            "UPDATE audio SET estado = 'error_transcripcion', error = ?, actualizado = ? "
+                            "WHERE id = ? AND estado = 'transcribiendo'",
+                            (str(exc)[:500], ahora_iso(), audio["id"]),
+                        )
+                    con.close()
+                    print(f"Audio {audio['id']}: no se pudo transcribir: {exc}")
+                continue
+
+            audio = _tomar_audio("analisis_pendiente", "analizando")
+            if audio:
+                try:
+                    con = conexion()
+                    contexto = contexto_para_qwen(con)
+                    anterior = json.loads(audio["borrador"]) if audio.get("borrador") else None
+                    con.close()
+                    borrador = pedir_borrador_qwen(
+                        audio["transcripcion"], audio["grabado"], contexto, anterior
+                    )
+                    con = conexion()
+                    with con:
+                        con.execute(
+                            "UPDATE audio SET borrador = ?, estado = 'listo', error = NULL, "
+                            "contrato_version = ?, actualizado = ? "
+                            "WHERE id = ? AND estado = 'analizando'",
+                            (json.dumps(borrador, ensure_ascii=False), CONTRATO_BORRADOR,
+                             ahora_iso(), audio["id"]),
+                        )
+                    con.close()
+                except Exception as exc:
+                    con = conexion()
+                    with con:
+                        con.execute(
+                            "UPDATE audio SET estado = 'error_analisis', error = ?, actualizado = ? "
+                            "WHERE id = ? AND estado = 'analizando'",
+                            (str(exc)[:500], ahora_iso(), audio["id"]),
+                        )
+                    con.close()
+                    print(f"Audio {audio['id']}: Qwen no pudo preparar el borrador: {exc}")
+                continue
+            break
+
+
+def iniciar_modelos():
+    global _hilo_modelos
+    if os.environ.get("RELACIONES_SIN_MODELOS") == "1":
+        return
+    if _hilo_modelos is None or not _hilo_modelos.is_alive():
+        _hilo_modelos = threading.Thread(
+            target=procesar_modelos, name="modelos-locales", daemon=True
+        )
+        _hilo_modelos.start()
+    _aviso_modelos.set()
+
+
+@app.on_event("startup")
+def arrancar_modelos_locales():
+    iniciar_modelos()
 
 def _json(datos, status=200):
     return Response(
@@ -1561,32 +2797,275 @@ async def subir_audio(archivo: UploadFile = File(...), grabado: str = Form("")):
     CARPETA_AUDIOS.mkdir(exist_ok=True)
     sello = grabado_iso.replace(":", "").replace("-", "").replace("T", "-")
     nombre = f"{sello}-{secrets.token_hex(3)}{ext}"
-    (CARPETA_AUDIOS / nombre).write_bytes(datos)
-
+    destino = CARPETA_AUDIOS / nombre
+    temporal = CARPETA_AUDIOS / f".{nombre}.subiendo"
     con = conexion()
-    with con:
+    try:
+        temporal.write_bytes(datos)
+        con.execute("BEGIN")
         cur = con.execute(
             "INSERT INTO audio (archivo, grabado, estado) "
             "VALUES (?, ?, 'pendiente')",
             (nombre, grabado_iso),
         )
+        temporal.replace(destino)
+        con.commit()
         audio_id = cur.lastrowid
+    except (OSError, sqlite3.Error):
+        con.rollback()
+        for ruta in (temporal, destino):
+            try:
+                ruta.unlink(missing_ok=True)
+            except OSError:
+                pass
+        con.close()
+        return _json({"ok": False, "motivo": "guardar"}, 500)
     con.close()
+    iniciar_modelos()
     return _json({"ok": True, "id": audio_id})
 
 
-@app.get("/audios")
-def pantalla_audios(request: Request, volver: str = "/nota"):
-    """La lista de audios subidos, para confirmar que han llegado. Vive dentro
-    de Apuntar: es apuntar por voz."""
-    con = conexion()
-    audios = con.execute(
-        "SELECT * FROM audio ORDER BY grabado DESC, id DESC"
-    ).fetchall()
-    con.close()
-    return plantillas.TemplateResponse(
-        request, "audios.html", {"audios": audios, "volver": volver}
+def _cargar_borrador_audio(con, audio_id):
+    fila = con.execute("SELECT * FROM audio WHERE id = ?", (audio_id,)).fetchone()
+    if fila is None:
+        return None, None
+    try:
+        borrador = json.loads(fila["borrador"]) if fila["borrador"] else {
+            "version": CONTRATO_BORRADOR, "personas": [],
+            "sin_asignar": [], "avisos": [], "quedadas_guardadas": {},
+        }
+    except json.JSONDecodeError:
+        borrador = {"version": CONTRATO_BORRADOR, "personas": []}
+    return fila, borrador
+
+
+def _buscar_bloque(borrador, clave):
+    return next((
+        bloque for bloque in borrador.get("personas", [])
+        if bloque.get("clave") == clave and not bloque.get("confirmado")
+    ), None)
+
+
+def _estado_revision_audio(borrador):
+    pendientes = any(
+        not bloque.get("confirmado")
+        for bloque in borrador.get("personas", [])
     )
+    return "listo" if pendientes else "revisado"
+
+
+@app.post("/audio/{audio_id}/volver-a-analizar")
+def volver_a_analizar_audio(audio_id: int, volver: str = Form("/nota")):
+    con = conexion()
+    with con:
+        con.execute(
+            "UPDATE audio SET estado = 'pendiente', transcripcion = NULL, "
+            "transcripcion_editada = 0, error = NULL, actualizado = ? WHERE id = ?",
+            (ahora_iso(), audio_id),
+        )
+    con.close()
+    iniciar_modelos()
+    return vuelve(volver)
+
+
+@app.post("/audio/{audio_id}/enviar-a-qwen")
+def enviar_texto_a_qwen(
+    audio_id: int, transcripcion: str = Form(""), volver: str = Form("/nota"),
+):
+    texto = transcripcion.strip()
+    if texto:
+        con = conexion()
+        with con:
+            con.execute(
+                "UPDATE audio SET transcripcion = ?, transcripcion_editada = 1, "
+                "estado = 'analisis_pendiente', error = NULL, actualizado = ? WHERE id = ?",
+                (texto, ahora_iso(), audio_id),
+            )
+        con.close()
+        iniciar_modelos()
+    return vuelve(volver)
+
+
+@app.post("/audio/{audio_id}/persona/{clave}/resolver")
+def resolver_persona_audio(
+    audio_id: int, clave: str, persona_id: int = Form(...),
+    volver: str = Form("/nota"),
+):
+    con = conexion()
+    fila, borrador = _cargar_borrador_audio(con, audio_id)
+    bloque = _buscar_bloque(borrador, clave) if borrador else None
+    existe = con.execute("SELECT 1 FROM persona WHERE id = ?", (persona_id,)).fetchone()
+    if fila and bloque and existe:
+        bloque["persona_id"] = persona_id
+        bloque["persona_dudosa"] = False
+        bloque["candidatos"] = list(dict.fromkeys([persona_id] + bloque.get("candidatos", [])))
+        bloque.pop("aviso", None)
+        with con:
+            con.execute(
+                "UPDATE audio SET borrador = ?, estado = 'listo', actualizado = ? WHERE id = ?",
+                (json.dumps(borrador, ensure_ascii=False), ahora_iso(), audio_id),
+            )
+    con.close()
+    return vuelve(volver)
+
+
+@app.post("/audio/{audio_id}/persona/{clave}/eliminar")
+def eliminar_bloque_audio(
+    audio_id: int, clave: str, volver: str = Form("/nota"),
+):
+    """Retira una propuesta sin guardar nada ni modificar la ficha personal."""
+    con = conexion()
+    fila, borrador = _cargar_borrador_audio(con, audio_id)
+    bloque = _buscar_bloque(borrador, clave) if borrador else None
+    if fila and bloque:
+        borrador["personas"] = [
+            candidato for candidato in borrador.get("personas", [])
+            if candidato is not bloque
+        ]
+        with con:
+            con.execute(
+                "UPDATE audio SET borrador = ?, estado = ?, actualizado = ? "
+                "WHERE id = ?",
+                (json.dumps(borrador, ensure_ascii=False),
+                 _estado_revision_audio(borrador), ahora_iso(), audio_id),
+            )
+    con.close()
+    return vuelve(volver)
+
+
+def _editar_bloque_formulario(
+    bloque, pendientes, preguntas, datos, quedada_fecha, quedada_canal,
+    quedada_resumen, quedada_texto,
+):
+    bloque["pendientes"] = [t.strip() for t in pendientes if t.strip()]
+    bloque["preguntas"] = [t.strip() for t in preguntas if t.strip()]
+    bloque["datos"] = [t.strip() for t in datos if t.strip()]
+    fecha = quedada_fecha.strip()
+    canal = quedada_canal.strip()
+    resumen = quedada_resumen.strip()
+    texto = quedada_texto.strip()
+    if fecha or canal or resumen or texto:
+        try:
+            fecha = date.fromisoformat(fecha).isoformat()
+        except ValueError:
+            fecha = ""
+        bloque["quedada"] = {
+            "fecha": fecha, "canal": canal, "resumen": resumen, "texto": texto,
+        }
+    else:
+        bloque["quedada"] = None
+
+
+def _bloque_guardable(bloque):
+    if not bloque.get("persona_id") or bloque.get("persona_dudosa"):
+        return False, "Confirma primero de quién se trata."
+    quedada = bloque.get("quedada")
+    if quedada and not all(quedada.get(campo) for campo in ("fecha", "resumen", "texto")):
+        return False, "La quedada necesita día, resumen y texto completo."
+    hay = any(bloque.get(campo) for campo in ("pendientes", "preguntas", "datos")) or quedada
+    if not hay:
+        return False, "Este bloque no contiene nada que guardar."
+    return True, ""
+
+
+def _guardar_bloque_audio(con, audio_id, borrador, bloque):
+    persona_id = bloque["persona_id"]
+    for campo, tipo in (("pendientes", "pendiente"), ("preguntas", "preguntar")):
+        for texto in bloque.get(campo, []):
+            cur = con.execute(
+                "INSERT INTO hilo (persona_id, texto, abierto_desde, tipo) VALUES (?, ?, ?, ?)",
+                (persona_id, texto, hoy_iso(), tipo),
+            )
+            con.execute(
+                "INSERT OR IGNORE INTO audio_registro VALUES (?, 'hilo', ?, ?)",
+                (audio_id, cur.lastrowid, persona_id),
+            )
+    for texto in bloque.get("datos", []):
+        cur = con.execute(
+            "INSERT INTO hecho (persona_id, texto, creado) VALUES (?, ?, ?)",
+            (persona_id, texto, ahora_iso()),
+        )
+        con.execute(
+            "INSERT OR IGNORE INTO audio_registro VALUES (?, 'hecho', ?, ?)",
+            (audio_id, cur.lastrowid, persona_id),
+        )
+    quedada = bloque.get("quedada")
+    if quedada:
+        firma = json.dumps(
+            [quedada["fecha"], quedada.get("canal", ""),
+             quedada["resumen"], quedada["texto"]],
+            ensure_ascii=False,
+        )
+        guardadas = borrador.setdefault("quedadas_guardadas", {})
+        nota_id = guardadas.get(firma)
+        if nota_id and not con.execute("SELECT 1 FROM nota WHERE id = ?", (nota_id,)).fetchone():
+            nota_id = None
+        if not nota_id:
+            cur = con.execute(
+                "INSERT INTO nota (fecha, canal, texto, resumen, creada) VALUES (?, ?, ?, ?, ?)",
+                (quedada["fecha"], quedada.get("canal", ""),
+                 quedada["texto"], quedada["resumen"], ahora_iso()),
+            )
+            nota_id = cur.lastrowid
+            guardadas[firma] = nota_id
+        con.execute(
+            "INSERT OR IGNORE INTO nota_persona (nota_id, persona_id) VALUES (?, ?)",
+            (nota_id, persona_id),
+        )
+        con.execute(
+            "INSERT OR IGNORE INTO audio_registro VALUES (?, 'nota', ?, ?)",
+            (audio_id, nota_id, persona_id),
+        )
+    bloque["confirmado"] = True
+    bloque.pop("aviso", None)
+
+
+@app.post("/audio/{audio_id}/persona/{clave}/confirmar")
+def confirmar_persona_audio(
+    audio_id: int, clave: str,
+    pendientes: list[str] = Form(default=[]),
+    preguntas: list[str] = Form(default=[]),
+    datos: list[str] = Form(default=[]),
+    quedada_fecha: str = Form(""),
+    quedada_canal: str = Form(""),
+    quedada_resumen: str = Form(""),
+    quedada_texto: str = Form(""),
+    volver: str = Form("/nota"),
+):
+    con = conexion()
+    fila, borrador = _cargar_borrador_audio(con, audio_id)
+    bloque = _buscar_bloque(borrador, clave) if borrador else None
+    if fila and bloque:
+        _editar_bloque_formulario(
+            bloque, pendientes, preguntas, datos,
+            quedada_fecha, quedada_canal, quedada_resumen, quedada_texto,
+        )
+        guardable, aviso = _bloque_guardable(bloque)
+        with con:
+            if guardable:
+                _guardar_bloque_audio(con, audio_id, borrador, bloque)
+            else:
+                bloque["aviso"] = aviso
+            con.execute(
+                "UPDATE audio SET borrador = ?, estado = ?, actualizado = ? WHERE id = ?",
+                (json.dumps(borrador, ensure_ascii=False),
+                 _estado_revision_audio(borrador), ahora_iso(), audio_id),
+            )
+    con.close()
+    return vuelve(volver)
+
+
+@app.get("/audios")
+def pantalla_audios(
+    request: Request, volver: str = "/nota", audios_pagina: int = 1,
+):
+    """La lista de audios subidos, para confirmar que han llegado. Vive dentro
+    de Notas: es el archivo de las grabaciones de voz."""
+    con = conexion()
+    datos = archivo_audios(con, audios_pagina, "/audios")
+    datos["volver"] = volver
+    con.close()
+    return plantillas.TemplateResponse(request, "audios.html", datos)
 
 
 @app.get("/audio/{audio_id}")
@@ -1607,17 +3086,40 @@ def oir_audio(audio_id: int):
 
 @app.post("/audio/{audio_id}/borrar")
 def borrar_audio(audio_id: int, volver: str = Form("/audios")):
-    """Borrado manual: se va la fila y también el archivo del disco."""
+    """Borrado manual compensado: fila y archivo se retiran como una unidad."""
     con = conexion()
     fila = con.execute(
         "SELECT archivo FROM audio WHERE id = ?", (audio_id,)
     ).fetchone()
-    with con:
+    if fila is None:
+        con.close()
+        return vuelve(volver, "/audios")
+
+    origen = CARPETA_AUDIOS / Path(fila["archivo"]).name
+    apartado = None
+    try:
+        if origen.exists():
+            CARPETA_AUDIOS_BORRADOS.mkdir(exist_ok=True)
+            apartado = CARPETA_AUDIOS_BORRADOS / (
+                f"{secrets.token_hex(4)}-{origen.name}"
+            )
+            origen.replace(apartado)
+        con.execute("BEGIN")
         con.execute("DELETE FROM audio WHERE id = ?", (audio_id,))
+        con.commit()
+    except (OSError, sqlite3.Error):
+        con.rollback()
+        if apartado is not None and apartado.exists() and not origen.exists():
+            try:
+                apartado.replace(origen)
+            except OSError:
+                pass
+        con.close()
+        return vuelve(volver, "/audios")
     con.close()
-    if fila is not None:
+    if apartado is not None:
         try:
-            (CARPETA_AUDIOS / Path(fila["archivo"]).name).unlink(missing_ok=True)
+            apartado.unlink(missing_ok=True)
         except OSError:
             pass
     return vuelve(volver, "/audios")
@@ -1691,14 +3193,14 @@ def api_grafo():
             p["datos"].append(f["texto"])
 
     for f in con.execute(
-        "SELECT np.persona_id, n.fecha, n.canal, n.texto FROM nota n"
+        "SELECT np.persona_id, n.fecha, n.canal, n.texto, n.resumen FROM nota n"
         "  JOIN nota_persona np ON np.nota_id = n.id"
         " ORDER BY n.fecha DESC, n.id DESC"
     ):
         p = por_id.get(f["persona_id"])
         if p is None or len(p["quedadas"]) >= QUEDADAS_EN_LA_RED:
             continue
-        texto = f["texto"].strip().replace("\n", " ")
+        texto = (f["resumen"] or f["texto"]).strip().replace("\n", " ")
         if len(texto) > LARGO_QUEDADA:
             texto = texto[:LARGO_QUEDADA].rstrip() + "…"
         p["quedadas"].append(

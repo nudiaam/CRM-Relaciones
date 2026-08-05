@@ -38,7 +38,7 @@ nombres viejos que en pantalla se dicen de otra manera:
 | `nota` | **Quedadas** |
 | `relacion` | **Relaciones** |
 | cerrar un hilo | **Ya está** |
-| escribir una nota | **Apuntar algo** |
+| abrir la captura | **Notas** o **Añadir nota** |
 | exportar | **Guardar una copia de todo** |
 | última nota | **Hablamos hace** (y el valor no repite el «hace»: *tres días*) |
 
@@ -62,7 +62,7 @@ circulo(id, nombre, orden)
 persona(id, nombre, apodo, circulo_id, color, cumple, notas_rapidas, foto, creada)
 hecho(id, persona_id, texto, creado)
 hilo(id, persona_id, texto, abierto_desde, cerrado_el, tipo)
-nota(id, fecha, canal, texto, creada)
+nota(id, fecha, canal, texto, resumen, creada)
 nota_persona(nota_id, persona_id)
 relacion(persona_a, persona_b, etiqueta, etiqueta_inversa)
 ajuste(clave, valor)                          -- sólo guarda la llave de red
@@ -75,6 +75,9 @@ Lo que no es evidente:
   subtítulo en la ficha completa y en la ficha rápida de Personas.
 - Una **nota** puede mencionar a varias personas, por eso no cuelga de una
   persona: hay tabla intermedia. Es lo que teje la red sin trabajo extra.
+  Guarda además un `resumen` opcional: las fichas compactas enseñan el resumen
+  y la ficha completa enseña siempre el texto íntegro. Las antiguas, sin
+  resumen, usan su texto como alternativa compacta.
 - **hecho** es lo que no caduca: odia el cilantro, su hermana se llama Ana.
 - **hilo** es lo que sí caduca, y su `tipo` lo parte en dos cosas distintas:
   `pendiente` es lo que yo tengo que hacer por esa persona; `preguntar` es algo
@@ -118,12 +121,24 @@ Lo que no es evidente:
    edición personal queda al final y las **quedadas se paginan de diez en diez**.
    Cada quedada lleva a su pantalla de edición y cada relación se edita en la
    propia ficha, mostrando con nombres qué significa en ambos sentidos.
-4. `/nota` es un recorrido lineal: qué ocurrió, cuándo y por dónde, con quién.
-   Sigue accesible con la tecla `N` y `Ctrl + Enter`. `/nota/{id}` reutiliza el
-   recorrido para cambiar una quedada, incluidas fecha, canal y personas.
+4. `/nota` es **Notas** y sigue accesible con la tecla `N`. Arriba integra la
+   grabadora en móvil, después permite elegir un audio activo opcional y debajo
+   monta una captura manual por persona. Cada bloque admite varios pendientes,
+   asuntos por los que preguntar y datos, más una sola quedada con día, resumen
+   compacto y texto completo; sus secciones empiezan plegadas y se confirma sin
+   depender de los otros bloques. *Descartar borrador* retira sólo ese bloque
+   sin tocar la persona ni su ficha.
+   El archivo de audios queda al final, plegado y paginado de cinco en cinco;
+   sólo enseña grabaciones cuyo archivo sigue realmente en la carpeta. `/nota/{id}`
+   conserva el recorrido para cambiar una quedada, incluidos sus dos textos,
+   fecha, canal y personas.
 5. `/ajustes` contiene modo día/noche, administración de círculos y copia de todo.
 
-La navegación principal muestra siempre: *Red*, *Personas*, *Apuntar* y *Ajustes*.
+La navegación principal muestra siempre: *Red*, *Personas*, *Notas* y *Ajustes*.
+
+Cada fila de `audio` corresponde a exactamente un archivo en `audios/`. Al
+arrancar, los archivos sueltos recuperan su fila y las filas sin archivo se
+retiran; subir y borrar compensan fallos para no romper esa relación.
 
 ## El estilo: interfaz pixelada 1-bit
 
@@ -162,7 +177,7 @@ deliberada, nunca decorada por nostalgia sin función.
   contorno visible de 2px.
 - Se admiten retículas de una y dos columnas según la tarea, con texto largo
   limitado a 640px. En móvil todo vuelve a una columna.
-- Las columnas de Personas, Apuntar y Ajustes se centran en la ventana, pero el
+- Las columnas de Personas, Notas y Ajustes se centran en la ventana, pero el
   texto permanece alineado a la izquierda.
 - No crear desplazamiento interno si el contenido puede crecer con la página.
   Cuando una región acotada lo necesita, su barra es fina, monocroma, integrada

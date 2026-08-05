@@ -13,6 +13,7 @@ datos.db-journal
 # Los audios grabados: son archivos sueltos junto a la base y contienen voz,
 # igual de privados que datos.db. Nunca se suben.
 audios/
+.audios-borrados/
 
 # Copias de seguridad y exportaciones: «Guardar una copia de todo» y los zip de
 # copias/ llevan la base entera dentro.
@@ -35,6 +36,8 @@ Relaciones.exe
 build/
 dist/
 *.spec
+!Relaciones.spec
+.paquete-deps/
 
 # Registro de fallos de arranque del ejecutable
 relaciones-error.txt

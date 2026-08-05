@@ -2,7 +2,7 @@
 
 Sin frameworks. Los dos son una función anónima que se ejecuta sola.
 
-## `app.js` · ~760 líneas
+## `app.js` · ~1.150 líneas
 
 Se carga **en el `<head>`** para aplicar el modo antes del primer pintado. Todo
 lo demás espera a `DOMContentLoaded`.
@@ -11,21 +11,26 @@ lo demás espera a `DOMContentLoaded`.
 | --- | --- | --- |
 | — | `enfocar()`: no enfoca si el puntero es grueso | 22 |
 | 1 | Modo día/noche antes de pintar | 35 |
-| 3 | Tecla `N` para apuntar desde cualquier sitio | 64 |
+| 3 | Tecla `N` para abrir Notas desde cualquier sitio | 64 |
 | 4 | `Ctrl + Enter` guarda la nota | 77 |
-| 5 | Filtro, contador y páginas de personas en Apuntar | 86 |
+| 5 | Filtro, contador y páginas del editor antiguo de quedadas | 86 |
 | 6 | **Aviso propio antes de borrar** (`<dialog>`, no `confirm()`) | 164 |
 | 7 | Foco al abrir un `details.anadir` | 171 |
 | 8 | Selectores integrados de persona y canal | 180 |
 | 9 | Varias relaciones en el alta | 374 |
 | 9 bis | **Control de fecha**: atajos y calendario | 429 |
-| 9 ter | **Ficha: plegado y edición por bloque** | 565 |
-| 9 quater | **Enlazar con varias**: atajos por círculo. Recorre **todas** las instancias: hay una en el alta y otra en la ficha | 605 |
-| 10 | Archivador sin recargar | 605 |
-| 11 | Conservar la posición vertical al recargar | 702 |
+| 9 ter | **Notas**: proceso local, revisión, audio activo y captura manual | 663 |
+| 9 quater | **Ficha: plegado y edición por bloque** | 870 |
+| 9 quinquies | **Enlazar con varias**: atajos por círculo | 914 |
+| 10 | Archivador sin recargar | busca `// 10.` |
+| 11 | Conservar la posición vertical al recargar | busca `// 11.` |
 
-**El bloque 2 no existe**: era el foco automático del texto de Apuntar, que se
+**El bloque 2 no existe**: era el foco automático del texto de la antigua captura, que se
 quitó porque abría el teclado solo en el móvil.
+
+En Notas, tanto los bloques manuales como los que rellena Qwen nacen abiertos.
+El selector emite `persona-limpiada` cuando se borra o modifica una elección;
+la captura retira entonces sólo el formulario de esa persona, sin tocar su ficha.
 
 ### El aviso antes de borrar
 
@@ -42,8 +47,28 @@ navegador no tiene `showModal`, se cae al `confirm()` de siempre.
 - **Nada de foco automático.** Al montar o al abrir algo no se llama a
   `.focus()` directo: se llama a `enfocar()`, que no hace nada en táctil.
 - **Ninguna acción puede mandar la página arriba.** De eso vive el bloque 11.
+  La posición se guarda por ruta: prevalece sobre las anclas de respaldo al
+  volver de un formulario y sobrevive también al recorrido de editar una
+  quedada fuera de la ficha y regresar después. Si hay una posición pendiente,
+  el ancla se retira en el `<head>` antes de que el navegador pueda saltar a ella.
+- El borrado de audio intercepta el segundo envío, ya confirmado, y retira la
+  fila mediante `fetch`: no recarga ni cambia la posición de la página.
+- El proceso del audio se refresca por fragmentos HTML mientras trabajan los
+  modelos. Las confirmaciones individuales y *Validar todo* hacen lo mismo.
+- Los fragmentos vuelven a registrar `data-confirmar`: así *Descartar bloque*
+  usa el mismo diálogo que el resto de eliminaciones antes de retirar la
+  propuesta y refrescar el audio activo.
+- Al recibir un fragmento nuevo, `cargarProceso()` sincroniza también el estado
+  guardado en la opción del selector. Si ya está `revisado`, la grabación deja
+  de aparecer entre las pendientes sin cerrar su ficha activa de golpe.
+- *Volver a analizar* cambia el botón y los dos estados visibles antes de
+  enviar la petición; durante Whisper queda desactivado y anuncia el proceso
+  mediante `aria-live`, sin dejar el borrador aparentemente inmóvil. El primer
+  refresco espera 900 ms para que la respuesta al clic llegue a percibirse.
 - El ocultado de la edición por bloque **lo enciende el JavaScript**: sin él la
-  ficha se ve entera. Es a propósito.
+  ficha se ve entera. Es a propósito. Abrir, cerrar o plegar un bloque reafirma
+  la posición visible para que el reajuste de altura no desplace la página; la
+  edición nativa `<details>` de cada relación hace lo mismo tras su apertura.
 
 ## `grafo.js` · ~900 líneas
 
@@ -101,7 +126,8 @@ Subirlo agrupa más pero junta los puntos. Si lo cambias, vuelve a medir.
 
 ## `voz.js` (captura por voz)
 
-Cargado en todas las pantallas desde `base.html`, aparte de `app.js`.
+Cargado en todas las pantallas desde `base.html`, aparte de `app.js`. La misma
+grabadora flota normalmente, pero `notas.html` la integra arriba en `/nota`.
 
 - Sólo actúa en móvil: `puedeGrabar()` exige puntero grueso, `MediaRecorder`,
   `getUserMedia` e IndexedDB. Si no, el botón flotante `[data-voz]` sigue
@@ -114,7 +140,9 @@ Cargado en todas las pantallas desde `base.html`, aparte de `app.js`.
   y con el botón *Reintentar*; borra de la cola sólo lo que el servidor confirma.
 - No toca el service worker ni cachea nada.
 - El reproductor de `/audios` (`prepararReproductor`) usa un solo `Audio`
-  compartido, sin `<audio controls>` nativo.
+  compartido, sin `<audio controls>` nativo. Publica `MediaMetadata` para que la
+  tarjeta de Android diga *Nota de voz*, muestre fecha y hora y use el logotipo
+  claro u oscuro según `html[data-modo]`.
 
 ### Lo que no se debe hacer en la red
 

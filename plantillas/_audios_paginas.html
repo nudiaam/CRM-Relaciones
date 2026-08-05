@@ -1,0 +1,15 @@
+{% if audios_paginas > 1 %}
+<nav class="archivo-paginacion audios-paginacion" aria-label="Páginas del archivo de audios">
+  {% if audios_anterior %}
+  <a href="{{ audios_anterior }}" aria-label="Audios más recientes">←</a>
+  {% else %}
+  <span class="paginacion-inactiva" aria-hidden="true">←</span>
+  {% endif %}
+  <span>PÁGINA {{ audios_pagina }} / {{ audios_paginas }}</span>
+  {% if audios_siguiente %}
+  <a href="{{ audios_siguiente }}" aria-label="Audios más antiguos">→</a>
+  {% else %}
+  <span class="paginacion-inactiva" aria-hidden="true">→</span>
+  {% endif %}
+</nav>
+{% endif %}

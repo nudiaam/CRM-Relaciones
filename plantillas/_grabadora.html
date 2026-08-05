@@ -1,0 +1,26 @@
+{# La misma grabadora vive dentro de Notas y flota en el resto de pantallas. #}
+<div class="voz" data-voz hidden>
+  <button class="voz-lanzar" type="button" data-voz-lanzar aria-expanded="false"
+          aria-label="Grabar una nota de voz">
+    <span class="voz-icono" aria-hidden="true"></span>
+    <span class="voz-lanzar-texto">Voz</span>
+    <span class="voz-cuenta" data-voz-cuenta hidden aria-hidden="true"></span>
+  </button>
+  <div class="voz-panel" data-voz-panel hidden role="group" aria-label="Grabar una nota de voz">
+    <div class="voz-panel-cabecera">
+      <span>Nota de voz</span>
+      <button class="voz-cerrar" type="button" data-voz-cerrar aria-label="Cerrar">×</button>
+    </div>
+    <p class="voz-estado" data-voz-estado>Toca grabar y habla.</p>
+    <div class="voz-tiempo" data-voz-tiempo aria-live="off" hidden>
+      <span class="voz-punto" aria-hidden="true"></span>
+      <span data-voz-reloj>00:00</span>
+    </div>
+    <button class="voz-grabar boton-solido" type="button" data-voz-grabar>Grabar</button>
+    <div class="voz-cola" data-voz-cola hidden>
+      <span data-voz-cola-texto></span>
+      <button class="discreto" type="button" data-voz-reintentar>Reintentar</button>
+    </div>
+    <a class="voz-lista" href="/nota#audios">Ver archivo de audios →</a>
+  </div>
+</div>

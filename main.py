@@ -4,6 +4,7 @@
 """
 
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -11,6 +12,18 @@ import traceback
 import urllib.error
 import urllib.request
 from pathlib import Path
+
+# Los modelos viven en el entorno del proyecto. Activarlo a mano es fácil de
+# olvidar (y cada terminal de Windows usa un comando distinto), así que al abrir
+# desde el código entramos en él antes de importar FastAPI, pywebview o Whisper.
+if __name__ == "__main__" and not getattr(sys, "frozen", False):
+    raiz_venv = Path(__file__).resolve().parent / "venv"
+    python_venv = raiz_venv / "Scripts" / "python.exe"
+    if python_venv.exists() and Path(sys.prefix).resolve() != raiz_venv.resolve():
+        codigo = subprocess.call(
+            [str(python_venv), str(Path(__file__).resolve()), *sys.argv[1:]]
+        )
+        raise SystemExit(codigo)
 
 import uvicorn
 import webview

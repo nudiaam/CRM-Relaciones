@@ -1,0 +1,30 @@
+{% if audios %}
+<ul class="audios-lista">
+  {% for a in audios %}
+  <li class="audio-fila" data-audio-fila data-audio-id="{{ a.id }}">
+    <div class="audio-datos">
+      <p class="audio-fecha">{{ a.grabado|fecha|capitalize }} · {{ a.grabado[11:16] }}</p>
+      <p class="audio-estado">{{ {
+        'pendiente': 'Esperando transcripción',
+        'transcribiendo': 'Transcribiendo',
+        'analisis_pendiente': 'Esperando análisis',
+        'analizando': 'Preparando el borrador',
+        'listo': 'Listo para revisar',
+        'revisado': 'Revisado',
+        'error_transcripcion': 'No se pudo transcribir',
+        'error_analisis': 'No se pudo preparar el borrador'
+      }.get(a.estado, a.estado) }}</p>
+    </div>
+    <button class="audio-oir discreto" type="button"
+            data-oir="/audio/{{ a.id }}">Escuchar</button>
+    <form method="post" action="/audio/{{ a.id }}/borrar" data-audio-borrar
+          data-confirmar="Se borra este audio del {{ a.grabado|fecha }} y ya no podrás volver a escucharlo. ¿Seguro?">
+      <input type="hidden" name="volver" value="{{ volver_audios }}">
+      <button class="discreto accion-eliminar" type="submit">Eliminar</button>
+    </form>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="vacio">Todavía no has grabado nada. Usa la grabadora de voz desde el móvil.</p>
+{% endif %}

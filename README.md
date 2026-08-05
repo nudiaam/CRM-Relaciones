@@ -18,8 +18,8 @@ una vista de red que muestra cómo se relacionan entre sí.
   el histórico de quedadas.
 - **Vista de red.** Un grafo que dibuja a las personas y sus relaciones, navegable
   con el dedo en el móvil.
-- **Apuntar por voz.** Grabas un audio desde el móvil y la aplicación lo transcribe
-  y propone qué apuntar, para que tú lo confirmes. *(En construcción — ver más abajo.)*
+- **Notas de voz.** Grabas un audio desde el móvil y la aplicación lo transcribe
+  y propone qué apuntar, para que tú lo confirmes.
 - **Acceso desde el móvil** a través de una red privada (Tailscale), sin abrir el
   ordenador a internet.
 - **Privado por diseño.** La base de datos y los audios se quedan en tu máquina.
@@ -95,12 +95,35 @@ pip install -r requisitos.txt
 python main.py
 ```
 
+Si `venv/` existe, `main.py` entra automáticamente en ese entorno antes de
+cargar la aplicación. No hace falta volver a activarlo para cada arranque.
+
 Se abrirá la ventana de escritorio y, en la propia terminal, verás las direcciones
 de acceso y la llave para entrar desde la red.
 
 La aplicación escucha siempre en el **puerto 9765**. Si ese puerto está ocupado,
 avisa y no arranca (no busca otro puerto), para no romper el acceso configurado
 desde el móvil.
+
+### Abrir con doble clic en Windows
+
+`Relaciones.exe` incluye su propio Python, la ventana, el servidor, las páginas
+y Whisper. Debe permanecer en esta carpeta, junto a `datos.db` y `audios/`; si
+se mueve solo a otra carpeta, abrirá una libreta nueva y vacía.
+
+Ollama, `qwen3:14b` y el modelo de Whisper permanecen fuera del ejecutable. Son
+mucho más grandes que la aplicación y se comparten desde sus almacenes locales.
+Para procesar voz, Ollama debe estar abierto igual que al ejecutar `main.py`.
+
+Para reconstruir el ejecutable desde el código, cierra primero Relaciones y
+ejecuta desde PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\construir.ps1
+```
+
+El constructor prepara sus dependencias en `.paquete-deps/`, crea la versión
+intermedia en `dist/` y deja el `Relaciones.exe` definitivo junto a los datos.
 
 ---
 
@@ -213,11 +236,7 @@ un extra, es el punto de partida:
 ## Estado
 
 - **Funcionando:** fichas de personas, círculos, vista de red, acceso desde el
-  móvil, PWA instalable, grabación y subida de audios (con cola que reintenta si no
-  hay conexión).
-- **En construcción:** la conexión entre la grabación y el análisis —transcribir el
-  audio automáticamente y proponer el borrador de qué apuntar—. Las piezas (Whisper
-  y Ollama) están instaladas y probadas por separado; falta integrarlas en la
-  aplicación.
+  móvil, PWA instalable, grabación y subida de audios, transcripción automática
+  con faster-whisper y borradores revisables preparados por Qwen en Ollama.
 - **Idea a futuro:** poder preguntarle a la aplicación por una persona y que
   responda a partir de lo que tienes guardado.

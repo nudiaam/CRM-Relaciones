@@ -937,7 +937,7 @@
       quedadas +
       relaciones +
       '<div class="acciones ir"><a class="boton" href="/nota?volver=%2F&amp;persona=' +
-        n.id + '">Apuntar algo</a><a class="boton boton-solido" href="/persona/' +
+        n.id + '">Añadir nota</a><a class="boton boton-solido" href="/persona/' +
         n.id + '">Abrir su ficha</a></div>';
 
     panel.classList.add('visible');
