@@ -1360,3 +1360,20 @@ construir nada encima.
   una última página corta reducía el alto del documento y el navegador no
   podía restaurar la posición aunque estuviera guardada. Recursos actualizados
   a `?v=20260805i`.
+
+### 2026-08-07 — README reorganizado en tres partes por público
+
+- El README se reordena en tres bloques numerados con su propio índice: *Qué es
+  Relaciones* (para quien no conoce el producto), *Instalarla y usarla* (guía de
+  instalación completa, con móvil y voz como opcionales) y *Cómo funciona por
+  dentro* (para personas técnicas). Una tabla de rutas al principio manda a cada
+  lector a su parte.
+- *Qué es* estrena *Las cuatro pantallas* y *Qué NO hace, a propósito*, que
+  resume en positivo las prohibiciones del proyecto (sin métricas, sin
+  recordatorios, sin cuentas, sin internet, sin importar contactos).
+- La antigua sección técnica, que sólo tenía clonar/instalar/arrancar, pasa a
+  explicar la pila real (FastAPI + uvicorn + pywebview en `app.py`, SQLite sin
+  ORM, front plano de un bit, puerto 9765 fijo), que nada sale a internet,
+  `ejemplo.py` para datos de prueba, la construcción del `.exe` y el mapa del
+  código.
+- Sólo se tocó `README.md`. No se cambió código, plantillas, base ni esquema.

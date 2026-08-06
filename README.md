@@ -18,6 +18,20 @@ Por ejemplo, después de hablar con Laura puedes apuntar que:
 La próxima vez que abras su ficha tendrás ese contexto sin depender de tu
 memoria.
 
+## Por dónde empezar según quién seas
+
+Este documento tiene tres partes. Ve directo a la tuya:
+
+1. **[Qué es Relaciones](#1-qué-es-relaciones)** — si aún no conoces el producto.
+2. **[Instalarla y usarla](#2-instalarla-y-usarla)** — la guía completa para
+   ponerla en marcha, incluidos el móvil y las notas de voz.
+3. **[Cómo funciona por dentro](#3-cómo-funciona-por-dentro)** — para personas
+   técnicas.
+
+---
+
+# 1. Qué es Relaciones
+
 ## Qué puedes hacer
 
 - Crear una ficha para cada persona, con nombre, foto y círculo: familia,
@@ -35,6 +49,47 @@ memoria.
 
 El análisis de audio nunca confirma información por ti: siempre puedes cambiar,
 corregir o descartar cada bloque antes de guardarlo en una ficha.
+
+## Las cuatro pantallas
+
+La aplicación se recorre con cuatro destinos siempre visibles:
+
+- **Red**: la portada. Un mapa en tres dimensiones donde cada persona es un
+  punto y las relaciones son líneas. Puedes girarlo, buscar a alguien y abrir su
+  ficha resumida.
+- **Personas**: un archivador. Los círculos funcionan como carpetas y a la
+  derecha aparece una ficha rápida de cada persona. Desde aquí se dan de alta.
+- **Notas**: donde apuntas una conversación, a mano o grabando una nota de voz.
+- **Ajustes**: modo día/noche, administración de círculos y copia de todo.
+
+Cada persona tiene además su **ficha completa**, con su identidad, lo que tienes
+en marcha con ella, las quedadas, los datos y sus relaciones.
+
+## Qué NO hace, a propósito
+
+- No pone puntuaciones, porcentajes ni «salud de la relación» al lado de nadie.
+- No manda recordatorios, notificaciones ni avisos de «hace mucho que no hablas».
+- No tiene cuentas, contraseñas ni permisos.
+- No llama a internet, ni a APIs ni a servicios externos.
+- No importa los contactos de tu móvil.
+
+Es una libreta sobre otras personas, no un panel de métricas ni un diario
+personal.
+
+---
+
+# 2. Instalarla y usarla
+
+Esta parte cubre, en orden:
+
+- [Instalación sencilla en Windows](#instalación-sencilla-en-windows)
+- [Primeros pasos](#primeros-pasos)
+- [Notas de voz y análisis automático](#notas-de-voz-y-análisis-automático--opcional)
+  *(opcional)*
+- [Usarla desde el móvil](#usarla-desde-el-móvil--opcional) *(opcional)*
+- [Tus datos, copias y actualizaciones](#tus-datos-copias-y-actualizaciones)
+- [Problemas habituales](#problemas-habituales)
+- [Privacidad](#privacidad)
 
 ## Instalación sencilla en Windows
 
@@ -241,9 +296,40 @@ Instalar Ollama, Tailscale y los modelos requiere descargar archivos desde sus
 sitios oficiales. Ese paso de instalación es independiente del uso normal de
 Relaciones.
 
-## Instalación desde el código — para personas técnicas
+---
 
-Esta sección no es necesaria si utilizas `Relaciones.exe`.
+# 3. Cómo funciona por dentro
+
+Para personas técnicas. Esta parte no es necesaria si utilizas `Relaciones.exe`.
+
+## La pila
+
+- **Python 3** sobre Windows. Todo el backend vive en un solo archivo, `app.py`,
+  con **FastAPI** servido por **uvicorn**.
+- `main.py` arranca uvicorn en un hilo demonio (`0.0.0.0`, puerto **9765** fijo)
+  y abre una ventana **pywebview** contra `http://127.0.0.1:9765`. El puerto no
+  se negocia: si está ocupado, la app avisa y no arranca.
+- **SQLite** con el módulo `sqlite3` de la estándar, en `datos.db`, sin ORM. El
+  esquema se crea al arrancar si no existe y las bases de versiones anteriores se
+  ponen al día en `poner_al_dia()`, que es idempotente.
+- **HTML, CSS y JavaScript planos**: sin frameworks, sin build, sin npm, sin CDN
+  y sin fuentes remotas. La única tipografía es un `@font-face` local (Departure
+  Mono, bajo SIL OFL).
+- La estética es una interfaz pixelada de **un bit**: sólo papel y tinta, sin
+  grises salvo un secundario para metadatos, filetes de 1px y tramas binarias.
+
+Los formularios que escriben datos son `POST` + redirección 303. Las únicas
+rutas que devuelven otra cosa son `GET /api/grafo` (JSON de la red) y `POST
+/audio` (subida de una grabación).
+
+## Nada sale a internet
+
+La aplicación no llama a ninguna API, CDN ni telemetría. La transcripción de voz
+(**faster-whisper**, modelo `large-v3`) y el análisis (**Ollama** con
+`qwen3:14b`) corren en local. No hay usuarios, login ni contraseñas; la «llave de
+red» sólo protege el acceso directo por IP, no es un sistema de cuentas.
+
+## Arrancar desde el código
 
 ```powershell
 git clone <dirección-del-proyecto>
@@ -254,13 +340,30 @@ python -m pip install -r requisitos-paquete.txt
 python main.py
 ```
 
-La aplicación escucha siempre en `0.0.0.0:9765`. Si existe una instalación
-válida de Python dentro de `venv\`, `main.py` la usa automáticamente.
+Si existe una instalación válida de Python dentro de `venv\`, `main.py` se
+relanza con ella automáticamente, para disponer de faster-whisper sin activar el
+entorno a mano. Para ver la red con datos de mentira:
 
-Para construir un nuevo ejecutable:
+```powershell
+python ejemplo.py          # mete 20 personas de prueba en seis círculos
+python ejemplo.py --quitar # las saca
+```
+
+## Construir el ejecutable
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\construir.ps1
 ```
 
-El resultado final queda en la raíz del proyecto como `Relaciones.exe`.
+`construir.ps1` prepara dependencias aisladas, empaqueta con `Relaciones.spec`
+(excluye Torch, TensorFlow y NumPy, que la app no usa) y deja `Relaciones.exe` en
+la raíz del proyecto. Los modelos de IA no se empaquetan: siguen en sus almacenes
+locales.
+
+## El mapa del código
+
+Antes de buscar nada a mano, mira la carpeta `mapa/`: cinco documentos
+(`backend.md`, `pantallas.md`, `estilos.md`, `interaccion.md`, `decisiones.md`)
+que dicen a qué archivo, sección y línea ir. `python mapa/comprobar.py` verifica
+que el mapa siga siendo cierto y que se respeten las reglas de estilo. Si tocas
+código, se actualiza el mapa en el mismo cambio.
