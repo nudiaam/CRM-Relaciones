@@ -1,79 +1,71 @@
 # Relaciones
 
-CRM personal *privacy-first* que corre íntegramente en local. Gestiona tus contactos y relaciones sin que ningún dato salga de tu máquina.
+Una agenda de relaciones personales que funciona **entera en tu ordenador**. Guarda tus contactos, notas y grabaciones de voz sin que nada salga de tu máquina ni se suba a internet.
 
-Incluye captura de voz con transcripción y análisis mediante modelos de IA locales (nada de APIs externas).
+Puedes hablarle y ella transcribe y resume lo que digas, usando inteligencia artificial que corre en tu propio equipo.
 
-## Características
+---
 
-- Gestión de contactos y notas en base de datos local (SQLite)
-- Aplicación de escritorio nativa (pywebview) sobre backend FastAPI
-- Captura de voz → transcripción con **faster-whisper** → análisis con **Qwen3** vía Ollama
-- Acceso opcional desde el móvil como PWA a través de Tailscale
+## Antes de empezar
 
-## Requisitos
+Necesitas instalar **dos programas gratuitos**. Solo se hace una vez.
 
-- **Python 3.10+**
-- **Ollama** ([ollama.com](https://ollama.com))
-- **GPU con ~12 GB de VRAM** recomendada para correr los modelos con soltura. Con menos, ver la sección [Ajustar los modelos](#ajustar-los-modelos).
-- CUDA compatible si quieres aceleración por GPU en la transcripción
+### 1. Python
 
-## Instalación
+Es el motor sobre el que funciona la app.
 
-### 1. Clonar e instalar dependencias
+- Descárgalo desde [python.org/downloads](https://python.org/downloads)
+- Durante la instalación, **marca la casilla "Add Python to PATH"** (importante).
 
-```bash
-git clone https://github.com/⚠️tu-usuario/relaciones.git
-cd relaciones
+### 2. Ollama
 
-python -m venv venv
-# Windows
-venv\Scripts\activate
-# Linux/macOS
-source venv/bin/activate
+Es lo que hace funcionar la inteligencia artificial en local.
 
-pip install -r requirements.txt
-```
+- Descárgalo desde [ollama.com](https://ollama.com) e instálalo como cualquier otro programa.
+- Una vez instalado, ábrelo y **descarga el cerebro de la IA** copiando esta línea en la ventana de comandos:
 
-### 2. Descargar el modelo de lenguaje (Ollama)
+  ```
+  ollama pull qwen3:14b
+  ```
 
-Con Ollama instalado y corriendo:
+  Tardará un rato (es una descarga grande). Deja que termine.
 
-```bash
-ollama pull qwen3:14b
-```
+> 💡 Ollama tiene que estar abierto cada vez que uses Relaciones.
 
-Asegúrate de que Ollama esté activo antes de arrancar la app (`ollama serve` o el servicio en segundo plano). La app espera encontrarlo en `http://localhost:11434`.
+---
 
-### 3. Modelo de transcripción (faster-whisper)
+## Instalar Relaciones
 
-No requiere descarga manual: **large-v3** se baja solo (~3 GB) la primera vez que se usa. El primer arranque tardará un poco más mientras lo descarga.
+1. Descarga este proyecto (botón verde **Code → Download ZIP**) y descomprímelo donde quieras.
 
-### 4. Arrancar
+2. Abre la carpeta y haz doble clic en **⚠️`instalar.bat`** *(la primera vez, para preparar todo).*
 
-```bash
-python ⚠️main.py
-```
+3. A partir de ahí, para abrir la app haz doble clic en **⚠️`Relaciones.bat`**.
 
-## Ajustar los modelos
 
-Si tu GPU tiene menos VRAM, puedes usar modelos más ligeros editando ⚠️`config.py` / `.env`:
+La primera vez que grabes un audio, la app descargará automáticamente el módulo de transcripción (unos 3 GB). Es normal que ese primer arranque tarde un poco más.
 
-| Ajuste | Por defecto | Alternativa ligera |
-|---|---|---|
-| Modelo Ollama | `qwen3:14b` | `qwen3:8b` |
-| Modelo Whisper | `large-v3` | `medium` / `small` |
+---
 
-Recuerda hacer `ollama pull` del modelo alternativo si cambias el de lenguaje.
+## Requisitos del ordenador
 
-## Acceso móvil (opcional)
+- **Windows 10/11**
+- Una **tarjeta gráfica (GPU) potente** para que la IA vaya fluida. Si el ordenador va justo, la app puede configurarse para usar modelos más ligeros — pídele ayuda a alguien técnico para ese ajuste.
 
-La app funciona perfectamente en local sin esto. Si quieres acceder desde el móvil como PWA, expón el servidor a través de [Tailscale](https://tailscale.com) dentro de tu red privada. ⚠️*(Añadir pasos concretos si procede.)*
+---
 
-## Privacidad
+## Usar desde el móvil (opcional)
 
-Todos los datos —contactos, notas, grabaciones y transcripciones— se quedan en tu máquina. No se envía nada a servicios externos.
+Se puede abrir la app desde el móvil dentro de tu red privada usando [Tailscale](https://tailscale.com). Es un paso avanzado y **no hace falta** para usarla en el ordenador.
+
+---
+
+## Tus datos son tuyos
+
+Todo —contactos, notas y grabaciones— se guarda **solo en tu ordenador**. La app no envía nada a ningún sitio.
+
+---
 
 ## Licencia
 
-⚠️ Indica aquí tu licencia (p. ej. MIT).
+MIT
