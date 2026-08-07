@@ -38,9 +38,9 @@ Es lo que hace funcionar la inteligencia artificial en local.
 
 1. Descarga este proyecto (botón verde **Code → Download ZIP**) y descomprímelo donde quieras.
 
-2. Abre la carpeta y haz doble clic en **⚠️`instalar.bat`** *(la primera vez, para preparar todo).*
+2. Abre la carpeta y haz doble clic en **`instalar.bat`** *(la primera vez, para preparar todo).*
 
-3. A partir de ahí, para abrir la app haz doble clic en **⚠️`Relaciones.bat`**.
+3. A partir de ahí, para abrir la app haz doble clic en **`Relaciones.bat`**.
 
 
 La primera vez que grabes un audio, la app descargará automáticamente el módulo de transcripción (unos 3 GB). Es normal que ese primer arranque tarde un poco más.
