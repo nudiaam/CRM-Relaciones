@@ -8,12 +8,9 @@
 
 <h1 align="center">Relaciones</h1>
 
-<p align="center">
-</p>
-
 Relaciones reúne en un solo lugar lo que quieres conservar de cada persona:
 qué habéis hablado, qué quieres preguntarle la próxima vez, qué tienes pendiente
-con ella y cómo se relaciona con el resto de tu entorno.
+con ella y cómo se relaciona con las demás personas.
 
 Está pensada para **una sola persona**, funciona en **Windows** y guarda la
 información en el propio ordenador. No tiene publicidad, cuentas ni
@@ -61,67 +58,58 @@ sobre privacidad, requisitos y copias.
 - **Ajustes** contiene el modo día/noche, la organización de los círculos y la
   copia de los datos.
 
-## Lo que no hace, a propósito
-
-- No puntúa relaciones ni calcula porcentajes, rachas o estadísticas.
-- No envía recordatorios, notificaciones ni avisos de frecuencia de contacto.
-- No importa la agenda del móvil.
-- No necesita una cuenta para el uso local.
-- No sube fichas, fotos, notas o grabaciones a un servicio externo.
-
-Es una libreta sobre otras personas, no un panel de métricas ni un diario
-personal.
-
 ---
 
 ## Guía para usar Relaciones
 
-### Antes de descargar
+### Descargar el proyecto
 
-> [!IMPORTANT]
-> El botón verde **Code → Download ZIP** de GitHub descarga el código fuente,
-> no una aplicación lista para abrir. Para usar Relaciones sin programar hace
-> falta una carpeta portátil que contenga `Relaciones.exe`.
+La versión publicada se descarga directamente desde este repositorio. El ZIP
+incluye la aplicación, sus recursos y los archivos necesarios para prepararla
+en Windows.
 
-Cuando haya una carpeta portátil publicada, aparecerá en la sección
-**[Releases](https://github.com/nudiaam/CRM-Relaciones/releases)** del proyecto.
-Si allí no hay un archivo para Windows, el repositorio ofrece por ahora sólo el
-código y tendrás que pedir una copia preparada a quien mantiene la aplicación o
-seguir el [apéndice técnico](#apéndice-para-personas-técnicas).
+1. Pulsa el botón verde **Code**.
+2. Elige **Download ZIP**.
+3. Descomprime la carpeta completa en un lugar fijo, por ejemplo
+   `Documentos\Relaciones`.
 
 ### Requisitos
 
 - Windows 10 u 11.
-- Una carpeta portátil de Relaciones o Python 3 si vas a arrancarla desde el
-  código.
+- Python 3.
 - Espacio adicional de varios gigabytes sólo si quieres analizar grabaciones.
 
 No necesitas una tarjeta gráfica dedicada para escribir y consultar fichas.
 Para el análisis de voz, una tarjeta compatible acelera el proceso; si no la
 hay, la transcripción intenta usar el procesador y puede tardar bastante más.
 
-### Instalación sencilla en Windows
+### Prepararla en Windows
 
-Relaciones es portátil: no tiene un asistente de instalación y no dispersa tus
-datos por el ordenador.
+Esta preparación se hace una sola vez.
 
-1. Descarga o recibe la carpeta comprimida que contiene `Relaciones.exe`.
-2. Descomprímela entera en un lugar fijo, por ejemplo
-   `Documentos\Relaciones`.
-3. Abre esa carpeta y haz doble clic en `Relaciones.exe`.
+1. Descarga [Python para Windows](https://www.python.org/downloads/windows/) y,
+   durante la instalación, marca **Add Python to PATH**.
+2. Abre la carpeta descomprimida de Relaciones.
+3. Haz clic en la barra de dirección del Explorador, escribe `powershell` y
+   pulsa Intro.
+4. Copia estas dos líneas, una detrás de otra:
 
-Si Windows muestra *Windows protegió su PC*, continúa sólo si la copia procede
-de este proyecto o de alguien en quien confías. Pulsa **Más información** y,
-después, **Ejecutar de todas formas**.
+   ```powershell
+   py -3 -m venv venv
+   .\venv\Scripts\python.exe -m pip install -r requisitos-paquete.txt
+   ```
+
+5. Cuando termine, cierra PowerShell y haz doble clic en `Relaciones.bat`.
+
+En las siguientes ocasiones sólo tendrás que abrir `Relaciones.bat`.
 
 En la primera apertura se crean junto a la aplicación:
 
 - `datos.db`, con las personas, fotos, relaciones y todo lo escrito;
 - `audios\`, con las grabaciones originales.
 
-Mantén la carpeta unida. Si mueves solamente `Relaciones.exe`, la aplicación
-creará una libreta nueva y parecerá que tus datos han desaparecido. Para tenerla
-en el escritorio, crea un **acceso directo** al ejecutable en lugar de moverlo.
+Mantén la carpeta unida. Para tener Relaciones en el escritorio, crea un
+**acceso directo** a `Relaciones.bat` en lugar de mover archivos sueltos.
 
 ### Primeros pasos
 
@@ -194,10 +182,8 @@ Usa **Serve**, nunca **Funnel**: Serve mantiene el acceso dentro de tu red
 privada y Funnel lo haría público. Puedes consultar la configuración con
 `tailscale serve status`.
 
-Al entrar desde otro aparato, Relaciones pide una llave de red una vez. Si la
-aplicación se inicia desde el código, la llave aparece en la ventana de
-comandos; en una carpeta portátil preparada para otra persona, quien la haya
-creado debe entregarla junto con la aplicación.
+Al entrar desde otro aparato, Relaciones pide una llave de red una vez. La
+llave aparece en la ventana de comandos al abrir `Relaciones.bat`.
 
 ### Tus datos y las copias
 
@@ -212,9 +198,6 @@ Para conservar absolutamente todo:
 
 Esa copia debe incluir `datos.db` y `audios\`. No subas ninguno de los dos a un
 repositorio público: contienen información personal.
-
-Antes de actualizar, guarda una copia de la carpeta. Después sustituye sólo
-`Relaciones.exe`; no reemplaces `datos.db` ni `audios\`.
 
 Para desinstalar Relaciones, cierra la aplicación y elimina su carpeta. Haz una
 copia antes si quieres conservar la información. Ollama y Tailscale se
@@ -232,8 +215,8 @@ desinstalan por separado desde **Aplicaciones instaladas** de Windows.
 
 #### La aplicación aparece vacía
 
-Comprueba que `Relaciones.exe` siga junto al `datos.db` que estabas usando. Una
-copia del ejecutable en otra carpeta crea una base nueva.
+Comprueba que has abierto `Relaciones.bat` desde la misma carpeta que contiene
+el `datos.db` que estabas usando. Otra copia del proyecto crea una base nueva.
 
 #### Una grabación no avanza
 
@@ -260,8 +243,8 @@ intentarse.
 
 ## Apéndice para personas técnicas
 
-Esta parte no es necesaria para utilizar una carpeta portátil con
-`Relaciones.exe`.
+Esta parte no es necesaria si sólo quieres usar Relaciones y ya has seguido la
+guía anterior.
 
 ### Arrancar desde el código
 
@@ -307,16 +290,14 @@ python ejemplo.py --quitar
 El primer comando añade personas ficticias y el segundo las retira. No lo uses
 sobre una base real sin saber exactamente qué va a cambiar.
 
-### Construir la carpeta portátil
+### Construir un ejecutable
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\construir.ps1
 ```
 
-El proceso usa PyInstaller y deja `Relaciones.exe` en la raíz. El ejecutable,
-`datos.db` y `audios\` están excluidos del control de versiones; una publicación
-para personas no técnicas debe empaquetar el ejecutable en un ZIP separado y
-adjuntarlo a una Release.
+El proceso usa PyInstaller y deja `Relaciones.exe` en la raíz. El ejecutable y
+los modelos locales no forman parte del repositorio publicado.
 
 ### Licencia
 

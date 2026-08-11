@@ -1397,3 +1397,25 @@ construir nada encima.
   recursos remotos.
 - Sólo se tocaron `README.md` y este registro. No se cambió código, plantillas,
   base de datos ni esquema. `mapa/comprobar.py` sigue pasando completo.
+
+### 2026-08-11 — Corrección del README tras comprobar GitHub
+
+- Se revisó la página pública y se sincronizó primero el commit más reciente
+  para no pisar la edición hecha directamente en GitHub. La rama pública
+  contiene el código, los recursos, `instalar.bat`, `Relaciones.bat` y los dos
+  archivos de requisitos; no contiene `Relaciones.exe`, `datos.db` ni
+  `audios/`, y no tiene Releases publicadas.
+- Se retiró toda la sección *Lo que no hace, a propósito*, como se pidió.
+- La guía deja de especular con una futura carpeta portátil o con Releases. El
+  recorrido principal parte ahora de lo que sí está publicado: **Code →
+  Download ZIP**, Python, dos órdenes de preparación y `Relaciones.bat` para
+  los arranques posteriores.
+- Se eliminaron también las instrucciones de copia, actualización y resolución
+  de fallos que daban por hecho que el lector había recibido
+  `Relaciones.exe`. El apéndice conserva la construcción del ejecutable sólo
+  como operación técnica opcional.
+- `instalar.bat` no se recomienda en la guía porque el archivo publicado pide
+  `requirements.txt`, que no existe; el repositorio contiene `requisitos.txt` y
+  `requisitos-paquete.txt`. El instalador no se modificó en este cambio.
+- Sólo se tocaron `README.md` y este registro. No se cambió código, plantillas,
+  base de datos ni esquema.
