@@ -1377,3 +1377,23 @@ construir nada encima.
   `ejemplo.py` para datos de prueba, la construcción del `.exe` y el mapa del
   código.
 - Sólo se tocó `README.md`. No se cambió código, plantillas, base ni esquema.
+
+### 2026-08-11 — README de GitHub para personas no técnicas
+
+- El README vuelve a presentar el propósito de Relaciones antes de la
+  instalación y ofrece dos recorridos dentro del mismo documento: una guía de
+  uso sin conocimientos de programación y un apéndice técnico breve. Así se
+  evita duplicar requisitos, privacidad y copias en dos archivos distintos.
+- La descarga distingue expresamente el ZIP de código de una carpeta portátil
+  con `Relaciones.exe`. Si GitHub no ofrece todavía una Release para Windows,
+  no se promete una aplicación instalable que el repositorio no contiene.
+- La guía explica las cinco vistas, el primer uso, la ubicación de `datos.db` y
+  `audios\`, las copias completas, las actualizaciones, los fallos habituales y
+  las ampliaciones opcionales de voz y móvil. La privacidad separa el uso local
+  de las descargas iniciales de dependencias y modelos.
+- El apéndice conserva el arranque desde código, la arquitectura, los datos de
+  prueba, el mapa y la construcción con PyInstaller. Se añadió el logotipo local
+  con una variante para cada modo de color de GitHub; no hay insignias ni
+  recursos remotos.
+- Sólo se tocaron `README.md` y este registro. No se cambió código, plantillas,
+  base de datos ni esquema. `mapa/comprobar.py` sigue pasando completo.
