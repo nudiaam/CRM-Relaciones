@@ -299,6 +299,3 @@ powershell -ExecutionPolicy Bypass -File .\construir.ps1
 El proceso usa PyInstaller y deja `Relaciones.exe` en la raíz. El ejecutable y
 los modelos locales no forman parte del repositorio publicado.
 
-### Licencia
-
-Relaciones se publica bajo la [licencia MIT](LICENSE).
