@@ -9,12 +9,11 @@
 <h1 align="center">Relaciones</h1>
 
 <p align="center">
-  Una libreta privada para recordar mejor a la gente que te importa.
 </p>
 
 Relaciones reúne en un solo lugar lo que quieres conservar de cada persona:
 qué habéis hablado, qué quieres preguntarle la próxima vez, qué tienes pendiente
-con ella y cómo se relaciona con el resto de tu gente.
+con ella y cómo se relaciona con el resto de tu entorno.
 
 Está pensada para **una sola persona**, funciona en **Windows** y guarda la
 información en el propio ordenador. No tiene publicidad, cuentas ni
