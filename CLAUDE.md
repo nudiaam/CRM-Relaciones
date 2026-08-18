@@ -72,7 +72,7 @@ Dos palabras **prohibidas**, porque nombraron conceptos que se eliminaron:
 ## Modelo de datos
 
 ```
-circulo(id, nombre, orden)
+circulo(id, nombre, orden, en_portada)
 persona(id, nombre, apodo, circulo_id, color, cumple, notas_rapidas, foto, creada)
 hecho(id, persona_id, texto, creado)
 hilo(id, persona_id, texto, abierto_desde, cerrado_el, tipo)
@@ -88,7 +88,8 @@ Lo que no es evidente:
   listas, búsquedas, selecciones y red. El nombre completo sólo reaparece como
   subtítulo en la ficha completa y en la ficha rápida de Personas.
 - Una **nota** puede mencionar a varias personas, por eso no cuelga de una
-  persona: hay tabla intermedia. Es lo que teje la red sin trabajo extra.
+  persona: hay tabla intermedia. La coincidencia queda registrada en las
+  fichas, pero no crea relaciones ni líneas entre todos sus asistentes.
   El `resumen` opcional se enseña en fichas compactas; la ficha completa usa
   siempre `texto`. Las quedadas antiguas usan el texto como alternativa corta.
 - **hecho** es lo que no caduca: odia el cilantro, su hermana se llama Ana.
@@ -101,7 +102,8 @@ Lo que no es evidente:
   gente que existe**. No lleva frecuencia asociada y el sistema no deduce nada
   de él. De fábrica, en una base nueva: Amigos, Familia, Trabajo y Barrio. Se
   pueden crear, renombrar, reordenar y borrar; al borrar uno, su gente se queda
-  sin círculo pero **no se borra** (`ON DELETE SET NULL`).
+  sin círculo pero **no se borra** (`ON DELETE SET NULL`). `en_portada` elige
+  hasta siete círculos visibles; los desactivados tampoco se dibujan en la red.
 - **canal** es un campo de texto libre de la quedada, no de la persona. La app
   sugiere los ya usados; se puede escribir cualquier otro.
 - **relacion**: `etiqueta` describe qué es B respecto de A; `etiqueta_inversa`
@@ -137,7 +139,8 @@ Lo que no es evidente:
    pendientes, preguntas y datos repetibles, más una quedada con día, resumen
    y texto completo. Los audios se transcriben con faster-whisper y Qwen prepara
    esos mismos bloques para revisarlos. `/nota/{id}` edita una quedada existente.
-5. `/ajustes` contiene modo día/noche, administración de círculos y copia de todo.
+5. `/ajustes` contiene modo día/noche, administración de círculos —incluidos los
+   accesos breves de la portada— y copia de todo.
 
 La navegación principal muestra siempre: *Red*, *Personas*, *Notas* y *Ajustes*.
 
@@ -207,31 +210,45 @@ de los nombres, la red no necesita fingirlo.
   apuntado algo de esa persona (`2 + √notas·0.9`, tope 5) y la profundidad lo
   corrige acotada (`escala()` entre 0.6 y 1.6), así que en pantalla van de 1.2 a
   8px. La profundidad también aclara el punto de forma continua, nunca a saltos.
-- **Las líneas, de 1px y al 7% de tinta**: casi al borde de no verse. Una red se
-  lee bien cuando está medio vacía.
-- **No hay anillos concéntricos.** Los círculos se muestran como cuadrados en
-  *Explorar la red*. Al pasar o enfocar se iluminan temporalmente sus personas;
-  al pulsar, la selección queda fijada. Nadie cambia de lugar.
+- **Las líneas son de 1px.** En reposo sólo se dibuja la jerarquía limpia entre
+  la raíz, los cuadrados activos y sus personas. Las relaciones entre dos
+  personas sólo aparecen al señalar o seleccionar una de ellas.
+- **No hay anillos concéntricos.** Los círculos activos se muestran dentro de la
+  red como cuadrados con nombre; *Sin círculo* usa un cuadrado discontinuo.
 - **Los nombres no se enseñan todos**: sólo los del 40% más cercano a la cámara
   (`CERCANIA_NOMBRES`), y al señalar a alguien sólo el suyo y los de sus
   conexiones. Siempre usan el nombre habitual si existe. Van en Departure a
   11px.
 - **Al señalar, el contraste es bestia a propósito**: esa persona y sus
   conexiones a plena tinta, todo lo demás al 5%.
-- La persona cuyo círculo se llama **Yo** es el origen estable de la red y se
-  mantiene en `(0, 0, 0)`. Las personas con círculo ocupan el volumen directo,
-  entre radios 220 y 430, y se enlazan con ella. Quienes no tienen círculo son
-  indirectas: ocupan el volumen exterior, entre 500 y 700, y nunca reciben un
-  enlace directo al centro.
-- La colocación y las fuerzas usan X, Y y Z con la misma amplitud. No se aplasta
-  el eje vertical ni se construye una cáscara plana.
-- La cámara está lejos (`camZ` 1500, y 1900 en pantalla estrecha) para que los
-  puntos cercanos no se proyecten enormes.
+- La persona de **Yo** es la raíz en `(0, 0, 0)`, sin cuadrado propio. Hay una
+  sola composición: los cuadrados se reparten con aire y cada grupo abre una
+  estrella regular y determinista a su alrededor.
+- Sólo las filas de `relacion` crean líneas entre dos personas. Coincidir en una
+  quedada no presupone que todos sus asistentes se conozcan.
+- Al señalar con ratón, esa persona se acerca visualmente y las próximas se
+  apartan; en táctil ocurre al seleccionarla. Señalar un cuadrado realza toda su
+  gente. El movimiento respeta la reducción de animaciones del sistema.
+- Pulsar una **persona** o un **círculo** centra la cámara en el foco y, además,
+  recoloca a su alrededor a la gente vinculada en un anillo ordenado
+  (`animarFisica`, `anilloActivo`): los allegados de la persona, o toda la gente
+  del círculo alrededor de su cuadrado, para que se lean como radios y no como un
+  abanico desordenado. No cambia las posiciones base: son desvíos interpolados
+  que vuelven a cero al soltar. Acercar, alejar y retroceder usan la misma
+  transición. Nuria es la excepción (ver más abajo): no recoloca a nadie ni
+  enseña sus relaciones.
+- Los grupos (gente de un círculo, corro de Nuria, satélites) se reparten sobre
+  una **esfera** alrededor de su centro, no sobre un plano: una esfera tiene
+  volumen en los tres ejes y se lee de frente, de lado y desde arriba, mientras
+  que un disco se ve de canto desde algún ángulo y vuelve a parecer plano.
+- **Nuria siempre cuelga de los cuadrados de círculo, no de las personas.** Es la
+  única excepción: al seleccionarla se dibuja su conexión a los círculos y no sus
+  relaciones personales.
 - El giro automático es de 0.00087 radianes por fotograma: una vuelta cada dos
   minutos. Calmado, pero vivo.
-- La caja *Explorar la red* integra resultados de nombres y los cuadrados de
-  círculo, además de acercar, alejar, centrar y pausar el giro. No usa
-  desplegables nativos. El botón izquierdo arrastrado gira; el derecho o el
+- La caja *Explorar la red* integra resultados de nombres y hasta siete accesos
+  de círculo elegidos en Ajustes, además de acercar, alejar, centrar y pausar el
+  giro. No usa desplegables nativos. El botón izquierdo arrastrado gira; el derecho o el
   central desplazan dentro de un límite; la rueda controla el zoom. Las flechas
   desplazan, Mayúsculas más flechas giran y *Centrar* restablece la cámara.
 - La ficha flotante lleva foto si existe, nombre, círculo, hablamos hace, queda
@@ -1419,3 +1436,150 @@ construir nada encima.
   `requisitos-paquete.txt`. El instalador no se modificó en este cambio.
 - Sólo se tocaron `README.md` y este registro. No se cambió código, plantillas,
   base de datos ni esquema.
+
+### 2026-08-18 — Una red única, limpia y continua
+
+- La red deja una sola composición estable, sin selector de orden. Nuria es el
+  origen sin cuadrado *Yo*; los cuadrados activos se reparten con aire por el
+  volumen y las personas forman estrellas regulares alrededor del suyo. Las
+  etiquetas que se solapan se omiten y la orientación inicial es determinista.
+- Ajustes manda sobre el contenido visible: un círculo desactivado no crea
+  cuadrado ni mete a su gente directa en el lienzo. *Sin círculo* respeta la
+  misma selección; quienes no tienen círculo pero sí una relación explícita con
+  una persona visible pueden seguir apareciendo como satélites, sin heredar su
+  clasificación. Las quedadas nunca crean conexiones.
+- Las relaciones entre personas sólo aparecen al señalar o seleccionar una.
+  David enseña así únicamente su relación explícita con Iciar, sin líneas
+  atribuidas a la gente que acudió a la misma quedada.
+- Señalar un círculo realza su cuadrado, su gente y los satélites vinculados sin
+  mover la cámara. Señalar una persona la acerca y separa suavemente los puntos
+  próximos para despejar el clic; no hay muelles ni rebotes. El giro automático
+  se detiene mientras el puntero está sobre un punto o un círculo.
+- Pulsar un círculo o una persona no recoloca nada: cambia objetivos de cámara y
+  posición que se alcanzan con interpolación fotograma a fotograma. Rueda,
+  botones, enfoque y retroceso comparten esa transición, de modo que acercar y
+  alejar dejan de dar saltos. Pulsar fuera retrocede persona → círculo → red.
+- Ajustes separa los círculos activos de los desactivados. Las casillas son
+  cuadrados de un bit, sin azul nativo; al guardar aparece a la izquierda una
+  confirmación temporal. La administración completa sigue plegada y paginada de
+  cinco en cinco, y *Ver todos* abre directamente esta subsección.
+- `circulo.en_portada` es una migración aditiva e idempotente; *Sin círculo* se
+  guarda en `ajuste.sin_circulo_en_portada`. No se modifica ni se pierde ninguna
+  clasificación, relación, quedada o persona.
+- Editar, plegar o abrir una relación en la ficha conserva el control pulsado en
+  el mismo punto visible, incluso cuando el bloque cambia de altura.
+- Revisado en navegador real: composición general, realce de círculo, enfoque de
+  persona, cámara progresiva, exclusión de círculos desactivados y confirmación
+  de guardado. Sintaxis Python/JavaScript, plantillas, mapa y recursos versionados
+  se comprueban en el mismo cambio.
+
+### 2026-08-18 — Los satélites dejan de flotar
+
+- Las personas sin círculo que sólo entran en la red por una relación explícita
+  (los «satélites» que coloca `colocarSatelites`) se dibujaban como puntos
+  sueltos: quedaban cerca de su relación pero sin ninguna línea que los uniera.
+- Ahora cuelgan de cada una de sus relaciones visibles con una **línea
+  secundaria**: siempre **discontinua** (`setLineDash([2, 3])`) y más tenue que
+  la estructura raíz → círculo → persona, para que ningún punto flote sin
+  atribuirle un círculo que no tiene.
+- La línea es sólo un ancla visual: no cambia qué se conecta con quién ni la
+  clasificación del satélite. Al señalar o seleccionar a esa persona, su
+  relación pasa a la línea sólida de `aristas` como siempre (la discontinua se
+  omite en ese tramo para no dibujar doble). El resto de la red baja de
+  contraste igual que antes.
+- Nuevo array `satelites`, construido junto a `estructura` en `montar()` y
+  dibujado en `pintar()` antes del paso de `aristas`. No se tocó la base, el
+  esquema ni `/api/grafo`. El mapa (`interaccion.md`) se actualizó en el mismo
+  cambio y `python mapa/comprobar.py` pasa. Los recursos van por `?v=20260818g`.
+
+### 2026-08-18 — Red con volumen, líneas de aislados acotadas y lomo suave
+
+Tres arreglos sobre la red, todos en `grafo.js` (sigue sin tocar backend ni base):
+
+- **Profundidad de verdad (dejaba de parecer 3D al girar).** Cada grupo —la
+  gente de un círculo, el corro de Nuria y cada satélite— se colocaba en un
+  anillo plano sobre el plano de la pantalla (la Z variaba ±55 frente a ~300 de
+  radio), así que al girar la cámara todo se veía como una losa fina. Ahora cada
+  grupo vive en un **disco inclinado en el espacio**, con una orientación
+  moderada y determinista por grupo (`baseDelDisco`, `enDisco`, constante
+  `TILT`). De frente sigue siendo una estrella/elipse legible —la vista frontal
+  que ya gustaba se conserva—; al girar, cada disco enseña su propia profundidad
+  y el conjunto tiene volumen. Los cuadrados de círculo también ganan algo de
+  fondo (factor Z de `ejesDeCirculos` de 0,3 a 0,55).
+- **La línea secundaria, sólo en los puntos AISLADOS.** El día anterior se tendió
+  a *todos* los satélites, y con datos reales eso tejía una maraña de discontinuas
+  entre la gente sin círculo (p. ej. el corro de Barrio). Se acota a los puntos
+  aislados de verdad: una persona sin círculo cuya única atadura es su relación y
+  cuyo componente sin círculo tiene **un único miembro**. Una nube de gente sin
+  círculo ya se lee junta y no recibe líneas encima.
+- **El lomo círculo→Nuria, apenas visible al señalar.** Al seleccionar a alguien,
+  la línea de su cuadrado a Nuria se dibujaba tan fuerte (0,44) como la de la
+  propia persona, y quedaba fea y ruidosa. Se separa `tocaCirculo` y baja a 0,12:
+  sitúa el círculo sin competir con la persona ni con sus relaciones, que siguen
+  siendo el foco.
+
+- Verificado en una copia aislada de `datos.db` (servida aparte, sin modelos):
+  `grafo.js` carga sin errores de consola y dibuja las 43 personas, 7 círculos y
+  116 relaciones reales. El aspecto fino de la inclinación queda a tu ojo: si es
+  demasiada o poca, se ajusta la constante `TILT` y el factor Z. El mapa
+  (`interaccion.md`) se actualizó en el mismo cambio y `python mapa/comprobar.py`
+  pasa. Los recursos van por `?v=20260818h`.
+
+### 2026-08-18 — Esferas, allegados en anillo, vaivén vivo y la excepción de Nuria
+
+Cuatro cambios sobre la red (`grafo.js`), atendiendo tus apuntes:
+
+- **Esferas, no discos.** Los discos inclinados de la tanda anterior seguían
+  viéndose de canto desde algún ángulo y volviendo a parecer planos. Ahora cada
+  grupo —gente de un círculo, corro de Nuria y cada satélite— se reparte sobre
+  una **esfera** alrededor de su centro (`direccionEsfera` + `colocarEnEsfera`).
+  Una esfera tiene volumen en los tres ejes, así que de frente, de lado y desde
+  arriba siempre hay profundidad y se lee. Se retiraron `baseDelDisco`, `enDisco`,
+  `TILT` y las utilidades `normaliza3`/`cruz` que sólo usaban.
+- **Al seleccionar a alguien, sus allegados se recolocan en un anillo** a su
+  alrededor (`animarFisica`, `radioAnillo`), en vez de quedar en el abanico
+  desordenado que salía cuando las relaciones apuntaban a donde cada uno estuviera.
+  Son desvíos interpolados: no cambian la posición base y vuelven a cero al
+  soltar. **Esto cambia la regla anterior** de que pulsar una persona nunca
+  recolocaba nada; se actualizó arriba en «La red».
+- **El vaivén del ratón sigue vivo dentro de una ficha.** Antes, al entrar en una
+  persona, se perdía el efecto de que la gente cercana se apartaba del puntero.
+  Ahora `bajoPuntero` alimenta ese apartar aunque haya alguien seleccionado, sin
+  cambiar su ficha ni su cámara.
+- **Excepción única de Nuria: cuelga de los círculos, no de las personas.** Al
+  seleccionar a Nuria (`central`) no se dibujan sus relaciones personales; su
+  conexión visible son los cuadrados de círculo, siempre, con independencia de lo
+  que tenga en su ficha.
+
+- Verificado en copia aislada de `datos.db` (servida aparte, sin modelos):
+  `grafo.js` carga y dibuja las 43 personas / 7 círculos / 116 relaciones sin
+  errores de consola. El aspecto fino —tamaño de las esferas, radio del anillo,
+  fuerza del vaivén— queda a tu ojo; se ajustan `radioAnillo`, las distancias de
+  `colocarEnEsfera` y la fuerza de `animarFisica`. No se pudo capturar pantalla
+  por automatización (el lienzo de una pestaña no visible se lee en negro). El
+  mapa (`interaccion.md`) se actualizó en el mismo cambio y
+  `python mapa/comprobar.py` pasa. Los recursos van por `?v=20260818i`.
+
+### 2026-08-18 — Ficha plegable, Nuria sólo a círculos y el círculo también recoloca
+
+- **La ficha resumida se pliega** como *Explorar la red*: su rótulo es ahora un
+  botón (`#grafo-ficha-plegar`) con su signo +/− que oculta el contenido; la ×
+  sigue cerrándola del todo. El estado plegado se conserva entre selecciones.
+  CSS nuevo `.grafo-ficha-plegar` y `.grafo-ficha[data-plegado="si"]`.
+- **Nuria: sólo los círculos en tinta, el resto de personas en gris.** Ya no se
+  realzaban únicamente sus relaciones al seleccionarla. Nueva función
+  `resaltada(n, a)`: la regla normal (persona + sus relaciones) salvo para Nuria
+  (`central`), donde no se realza ninguna persona —sólo ella— y **todos los
+  círculos se encienden**, porque su vínculo son los cuadrados, no la gente. Sus
+  aristas personales ya no se dibujaban (tanda anterior); esto completa la
+  excepción también en puntos y nombres.
+- **Pulsar un círculo recoloca a su gente en un anillo** alrededor del cuadrado,
+  igual que al entrar en una persona. La lógica del anillo se extrajo a
+  `anilloActivo()`, que sirve tanto a la persona (sus allegados) como al círculo
+  (su gente por `enCirculoVisual`). Sigue sin tocar posiciones base: desvíos
+  interpolados que vuelven a cero al soltar. Se actualizó la regla de «La red».
+- Verificado en copia aislada de `datos.db` (sin modelos): sin errores de
+  consola tras seleccionar persona, círculo y Nuria; el toggle de la ficha
+  alterna `data-plegado` si/no y el signo +/−. El aspecto fino queda a tu ojo.
+  El mapa (`interaccion.md`) se actualizó; `python mapa/comprobar.py` pasa.
+  Recursos: `grafo.js?v=20260818j`, `estilo.css?v=20260818j`.

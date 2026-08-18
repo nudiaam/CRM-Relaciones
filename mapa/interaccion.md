@@ -11,6 +11,8 @@ lo demás espera a `DOMContentLoaded`.
 | --- | --- | --- |
 | — | `enfocar()`: no enfoca si el puntero es grueso | 22 |
 | 1 | Modo día/noche antes de pintar | 35 |
+| 1 bis | Límite de círculos visibles en la portada | 109 |
+| 1 ter | Administración de círculos plegada y paginada | 130 |
 | 3 | Tecla `N` para abrir Notas desde cualquier sitio | 64 |
 | 4 | `Ctrl + Enter` guarda la nota | 77 |
 | 5 | Filtro, contador y páginas del editor antiguo de quedadas | 86 |
@@ -70,25 +72,26 @@ navegador no tiene `showModal`, se cae al `confirm()` de siempre.
   refresco espera 900 ms para que la respuesta al clic llegue a percibirse.
 - El ocultado de la edición por bloque **lo enciende el JavaScript**: sin él la
   ficha se ve entera. Es a propósito. Abrir, cerrar o plegar un bloque reafirma
-  la posición visible para que el reajuste de altura no desplace la página; la
-  edición nativa `<details>` de cada relación hace lo mismo tras su apertura.
+  la posición del propio control para que el reajuste de altura no desplace lo
+  que la persona acaba de pulsar; la edición nativa `<details>` de cada relación
+  hace lo mismo tras su apertura.
 
-## `grafo.js` · ~900 líneas
+## `grafo.js` · ~1.100 líneas
 
 | Sección | Línea | Ancla |
 | --- | --- | --- |
-| Cargar `/api/grafo` | 69 | `── cargar` |
-| Colocación de nodos (una vez) | 136 | `function colocar` |
-| Ejes por círculo (Fibonacci) | 138 | `function ejesDeCirculos` |
-| Medidas del lienzo | 220 | `function medir` |
-| Tinta, radios y escala | 231 | `function tinta` |
-| Dibujo | 281 | `function pintar` |
-| Interacción: buscar, seleccionar, cámara | 367 | `function xy` |
-| Mandos de *Explorar la red* | 422 | `function prepararMandos` |
-| Leyenda de círculos | 549 | `function montarCirculos` |
-| Ratón y dedos | 605 | `var toques = new Map` |
-| Teclado | ~745 | `addEventListener('keydown'` |
-| Ficha flotante | 773 | `── la ficha flotante` |
+| Cargar `/api/grafo` | 65 | `── cargar` |
+| Elegir colocación | 227 | `function colocar` |
+| Agrupar por círculo | 381 | `function colocarPorCirculos` |
+| Medidas del lienzo | 393 | `function medir` |
+| Tinta, radios, escala y física | 405 | `function tinta` |
+| Dibujo | 507 | `function pintar` |
+| Interacción: buscar, seleccionar, cámara | 665 | `function xy` |
+| Mandos de *Explorar la red* | 827 | `function prepararMandos` |
+| Leyenda de círculos | 949 | `function montarCirculos` |
+| Ratón y dedos | 1003 | `var toques = new Map` |
+| Teclado | 1018 | `addEventListener('keydown'` |
+| Ficha flotante | 1038 | `── la ficha flotante` |
 
 ### Gestos
 
@@ -100,6 +103,9 @@ Todo pasa por eventos `pointer*`, con los dedos activos en un `Map`:
 - `preventDefault()` en `pointerdown` **sólo con ratón**. Con el dedo lo
   cancelaba el traspaso de foco y Android reabría el teclado en cada toque.
 - El lienzo lleva `touch-action: none`, que es lo que frena el desplazamiento.
+- Un toque o clic entra por niveles: cuadrado → círculo centrado; punto → persona.
+  Los nodos no cambian de disposición: la cámara interpola su posición y zoom.
+  Pulsar el fondo o `Escape` retrocede persona → círculo → vista general.
 
 ### La ficha flotante
 
@@ -108,24 +114,57 @@ al abrirse. Sin eso, el `click` que el navegador dispara tras el toque caía
 sobre *Abrir su ficha* y te sacaba de la red. **Es un apaño**: lo correcto sería
 que ese `click` heredado no llegara a generarse.
 
-### Agrupación por círculo
+### Composición y enfoque de la red
 
-Cada círculo con gente dentro recibe **una dirección propia** en la esfera,
-repartidas con una espiral de Fibonacci. Sus personas nacen dentro de un cono
-alrededor de esa dirección, y durante la simulación una fuerza floja
-(`COHESION`) las mantiene ahí en vez de dejar que la repulsión las esparza.
+Hay una sola composición determinista. `estructura` contiene la jerarquía
+Nuria → círculo activo → persona; no existe cuadrado *Yo*. `aristas` contiene
+únicamente relaciones explícitas y sólo se dibuja si toca a la persona activa.
+`prepararAnclasSinCirculo()` acerca a la gente sin círculo a sus relaciones con
+personas visibles sin cambiar su clasificación. Quien no tiene ancla sólo entra
+cuando *Sin círculo* está activo. `satelites` tiende una línea secundaria sólo a
+los **puntos aislados de verdad**: una persona sin círculo cuya única atadura es
+su relación **y** que está sola (su componente sin círculo tiene un único
+miembro). Un grupo de gente sin círculo ya se lee como nube junta y no recibe la
+maraña. La línea es discontinua (`setLineDash([2, 3])`) y más floja que
+`estructura`; al señalar a esa persona pasa a la línea sólida de `aristas`.
 
-Quien no tiene círculo **no se agrupa**: reparto libre en el volumen exterior.
+Cada grupo (gente de un círculo, corro de Nuria, satélites) se reparte sobre una
+**esfera** alrededor de su centro (`direccionEsfera` + `colocarEnEsfera`), no
+sobre un plano: un disco se ve de canto desde algún ángulo y vuelve a parecer
+plano, mientras que una esfera tiene volumen en los tres ejes y se lee de frente,
+de lado y desde arriba. La profundidad de los propios cuadrados la fija el factor
+Z de `ejesDeCirculos`.
 
-`COHESION` se eligió midiendo. Con las 27 personas reales:
+La línea del cuadrado a Nuria (raíz → círculo) queda apenas visible cuando hay
+una persona señalada (`tocaCirculo`), para no robar protagonismo a la persona ni
+a sus relaciones; sólo la línea de la propia persona a su cuadrado se realza.
 
-| Valor | Distancia dentro / fuera | Distancia mínima |
-| --- | --- | --- |
-| 0 (como estaba) | 0,42 | 142 |
-| **0,03 (actual)** | **0,30** | **105** |
-| 0,08 | 0,25 | 88 |
+**Excepción única de Nuria**: cuando la persona activa es `central`, NO se
+dibujan sus aristas (relaciones personales); su conexión visible es la de los
+cuadrados de círculo, siempre. El resto de personas sí enseña sus relaciones.
 
-Subirlo agrupa más pero junta los puntos. Si lo cambias, vuelve a medir.
+`animarFisica()` mueve la red sin tocar las posiciones base (todo son desvíos
+interpolados que vuelven a cero al soltar): al **señalar** con el ratón la gente
+cercana se aparta del puntero —vivo también con una persona ya seleccionada,
+vía `bajoPuntero`, para que entrar en una ficha no congele el vaivén— y al
+**seleccionar** una persona o un círculo su gente vinculada se recoloca en un
+anillo (`anilloActivo` + `radioAnillo`) alrededor del foco: los allegados de la
+persona, o toda la gente del círculo alrededor de su cuadrado. Nuria no forma
+anillo. Al soltar la selección, todo regresa.
+
+`resaltada(n, a)` decide a quién realza señalar/seleccionar: persona + sus
+relaciones, salvo Nuria (`central`), que no realza a ninguna persona y enciende
+en cambio todos los cuadrados de círculo.
+
+La **ficha resumida** se pliega como *Explorar la red*: `#grafo-ficha-plegar` es
+el rótulo-botón con su signo +/−, alterna `#ficha[data-plegado]` y conserva el
+estado entre selecciones; la × (`#grafo-cerrar`) sigue cerrándola del todo.
+
+`animarFisica()` interpola el realce de la persona señalada y aparta suavemente
+los puntos próximos para despejar el clic, sin muelles. Señalar un cuadrado fija
+el contraste de todas sus personas sin cambiar el encuadre. Pulsar un cuadrado o
+una persona actualiza objetivos de cámara; `actualizarCamara()` los alcanza poco
+a poco, por lo que acercar, alejar y retroceder no recolocan la red ni dan saltos.
 
 ## `voz.js` (captura por voz)
 

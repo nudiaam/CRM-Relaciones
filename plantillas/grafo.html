@@ -24,7 +24,7 @@
       <div class="grafo-circulos">
         <div class="grafo-mandos-subtitulo">
           <span>Círculos</span>
-          <button id="grafo-todos" class="accion-texto" type="button">Ver todos</button>
+          <a class="accion-texto" href="/ajustes#circulos-portada">Ver todos</a>
         </div>
         <div id="grafo-circulos" class="grafo-circulos-lista" aria-label="Mostrar personas de un círculo"></div>
       </div>
@@ -38,14 +38,20 @@
     </div>
   </section>
 
-  <details class="grafo-ayuda">
-    <summary>Cómo moverte</summary>
-    <p>Arrastra con el botón izquierdo para girar. Usa el derecho o el central para desplazarte hasta el límite de la red y la rueda para acercarte. Las flechas desplazan; con Mayúsculas, giran. Pulsa Centrar para volver al inicio.</p>
-  </details>
+  <div class="grafo-pie-red">
+    <details class="grafo-ayuda">
+      <summary>Cómo moverte</summary>
+      <p>Arrastra con el botón izquierdo para girar. Usa el derecho o el central para desplazarte hasta el límite de la red y la rueda para acercarte. Las flechas desplazan; con Mayúsculas, giran. Pulsa Centrar para volver al inicio.</p>
+    </details>
+  </div>
 
   <aside class="grafo-ficha" id="ficha" aria-live="polite" aria-label="Persona seleccionada">
     <div class="ventana-titulo grafo-ficha-titulo">
-      <span>Ficha resumida</span>
+      <button class="grafo-ficha-plegar" id="grafo-ficha-plegar" type="button"
+              aria-expanded="true" aria-controls="ficha-contenido">
+        <span>Ficha resumida</span>
+        <span data-signo aria-hidden="true">−</span>
+      </button>
       <button class="grafo-cerrar" id="grafo-cerrar" type="button" aria-label="Cerrar">×</button>
     </div>
     <div id="ficha-contenido"></div>
@@ -58,5 +64,5 @@
     {% if cuantas_personas < 2 %}<a href="/personas">Añadir personas</a>{% endif %}
   </div>
 </main>
-<script src="/estatico/grafo.js?v=20260801a"></script>
+<script src="/estatico/grafo.js?v=20260818j"></script>
 {% endblock %}

@@ -28,13 +28,81 @@
 <section class="panel ajustes-bloque">
   <div class="panel-cabecera">
     <h2>Círculos</h2>
-    <span>{{ circulos|length }}</span>
+    <span>{{ circulos_ajustes|length + 1 }}</span>
   </div>
   <p class="ayuda">Sirven para indicar de dónde conoces a cada persona. En la red puedes señalar cada círculo para encontrar a toda su gente.</p>
-  {% if circulos %}
-  <ul class="circulos-lista">
-    {% for c in circulos %}
-    <li>
+  {% set circulos_activos = circulos_ajustes|selectattr('en_portada')|list %}
+  {% set circulos_desactivados = circulos_ajustes|rejectattr('en_portada')|list %}
+  <section class="circulos-portada" id="circulos-portada">
+    <div>
+      <h3>En la portada</h3>
+      <p>Elige hasta {{ max_circulos_portada }} círculos para <em>Explorar la red</em>. Sin círculo cuenta como uno más.</p>
+    </div>
+    <form method="post" action="/circulos/portada"
+          data-circulos-portada data-maximo="{{ max_circulos_portada }}">
+      <input type="hidden" name="volver" value="/ajustes?circulos_guardados=1#circulos-portada">
+      <section class="circulos-portada-grupo">
+        <h4>Activos</h4>
+        {% if not circulos_activos and not sin_circulo_en_portada %}
+        <p class="vacio">Ningún círculo activo.</p>
+        {% else %}
+        <div class="circulos-portada-opciones">
+          {% for c in circulos_activos %}
+          <label>
+            <input type="checkbox" name="circulos_portada" value="{{ c.id }}" checked>
+            <span>{{ c.nombre }}</span>
+          </label>
+          {% endfor %}
+          {% if sin_circulo_en_portada %}
+          <label>
+            <input type="checkbox" name="circulos_portada" value="ninguno" checked>
+            <span>Sin círculo</span>
+            <span class="circulo-portada-cuenta">{{ personas_sin_circulo }}</span>
+          </label>
+          {% endif %}
+        </div>
+        {% endif %}
+      </section>
+      {% if circulos_desactivados or not sin_circulo_en_portada %}
+      <section class="circulos-portada-grupo circulos-portada-desactivados">
+        <h4>Desactivados</h4>
+        <p>Sus cuadrados dejan de aparecer en la red. Márcalos y guarda para volver a mostrarlos.</p>
+        <div class="circulos-portada-opciones">
+          {% for c in circulos_desactivados %}
+          <label>
+            <input type="checkbox" name="circulos_portada" value="{{ c.id }}">
+            <span>{{ c.nombre }}</span>
+          </label>
+          {% endfor %}
+          {% if not sin_circulo_en_portada %}
+          <label>
+            <input type="checkbox" name="circulos_portada" value="ninguno">
+            <span>Sin círculo</span>
+            <span class="circulo-portada-cuenta">{{ personas_sin_circulo }}</span>
+          </label>
+          {% endif %}
+        </div>
+      </section>
+      {% endif %}
+      <div class="circulos-portada-pie">
+        <span aria-live="polite">
+          <span data-aviso-limite></span>
+          {% if request.query_params.get('circulos_guardados') == '1' %}
+          <span class="circulos-guardados" data-aviso-guardado>Cambios guardados</span>
+          {% endif %}
+        </span>
+        <button type="submit">Guardar selección</button>
+      </div>
+    </form>
+  </section>
+  <details class="circulos-administrar" data-circulos-administrar>
+    <summary>
+      <span>Administrar círculos</span>
+      <span>{{ circulos_ajustes|length + 1 }}</span>
+    </summary>
+    <ul class="circulos-lista">
+      {% for c in circulos_ajustes %}
+      <li data-circulo-fila>
       <form class="circulo-nombre" method="post" action="/circulo/{{ c.id }}">
         <input type="hidden" name="volver" value="/ajustes">
         <label class="solo-lectores" for="circulo-{{ c.id }}">Nombre del círculo</label>
@@ -61,22 +129,32 @@
           <button class="discreto accion-eliminar" type="submit">Quitar</button>
         </form>
       </div>
-    </li>
-    {% endfor %}
-  </ul>
-  {% else %}
-  <p class="vacio">Ningún círculo todavía.</p>
-  {% endif %}
-  <details class="anadir">
-    <summary>Añadir un círculo</summary>
-    <form method="post" action="/circulo">
-      <input type="hidden" name="volver" value="/ajustes">
-      <label for="circulo-nuevo">Cómo se llama</label>
-      <div class="control-compuesto">
-        <input id="circulo-nuevo" type="text" name="nombre" autocomplete="off" placeholder="Amigos, hípica, universidad…" required>
-        <button class="boton-solido" type="submit">Añadir</button>
-      </div>
-    </form>
+      </li>
+      {% endfor %}
+      <li class="circulo-sistema" data-circulo-fila>
+        <div>
+          <strong>Sin círculo</strong>
+          <span>Se asigna automáticamente</span>
+        </div>
+        <span>{{ personas_sin_circulo }} {{ 'persona' if personas_sin_circulo == 1 else 'personas' }}</span>
+      </li>
+    </ul>
+    <nav class="circulos-paginas" aria-label="Páginas de círculos" data-circulos-paginas hidden>
+      <button type="button" data-circulos-anterior aria-label="Página anterior">←</button>
+      <span data-circulos-pagina aria-live="polite"></span>
+      <button type="button" data-circulos-siguiente aria-label="Página siguiente">→</button>
+    </nav>
+    <details class="anadir">
+      <summary>Añadir un círculo</summary>
+      <form method="post" action="/circulo">
+        <input type="hidden" name="volver" value="/ajustes">
+        <label for="circulo-nuevo">Cómo se llama</label>
+        <div class="control-compuesto">
+          <input id="circulo-nuevo" type="text" name="nombre" autocomplete="off" placeholder="Amigos, hípica, universidad…" required>
+          <button class="boton-solido" type="submit">Añadir</button>
+        </div>
+      </form>
+    </details>
   </details>
 </section>
 

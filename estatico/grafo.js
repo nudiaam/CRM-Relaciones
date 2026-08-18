@@ -11,10 +11,9 @@
    Cómo se lee la red:
      - El tamaño de cada punto lo dice cuántas veces has apuntado algo de esa
        persona. La distancia a la cámara lo corrige, no lo sustituye.
-     - Las líneas, de un píxel y casi invisibles. Una red se lee cuando está
-       medio vacía.
-     - Los círculos se exploran desde cuadrados. Al señalarlos se iluminan sus
-       personas allí donde estén, sin cambiar la posición de nadie.
+     - En reposo sólo se ve la estructura raíz → círculo → persona. Las
+       relaciones aparecen al señalar a alguien.
+     - Los círculos activos son cuadrados con su gente alrededor.
      - Los nombres sólo salen en el 40% más cercano a la cámara. Al señalar a
        alguien, sólo el suyo y los de quienes están conectados con él.
    ========================================================================== */
@@ -29,7 +28,6 @@
   var resultadosNombre = document.getElementById('grafo-resultados');
   var botonLimpiar = document.getElementById('grafo-limpiar');
   var listaCirculos = document.getElementById('grafo-circulos');
-  var botonTodos = document.getElementById('grafo-todos');
   var mensaje = document.getElementById('grafo-mensaje');
   if (!lienzo) return;
 
@@ -37,40 +35,29 @@
   var raiz = document.documentElement;
   var quieto = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  var RADIO_DIRECTO_DENTRO = 220;
-  var RADIO_DIRECTO_FUERA = 430;
-  var RADIO_INDIRECTO_DENTRO = 500;
-  var RADIO_INDIRECTO_FUERA = 700;
-  var REPULSION = 16000;
-  var LARGO_LAZO = 180;
-  var LARGO_DIRECTO = 300;
-  // Cada círculo ocupa su propia zona del volumen. Sin esto, gente que se
-  // conoce entre sí quedaba repartida al azar y sus líneas cruzaban la
-  // pantalla entera.
-  //
-  // El número se eligió midiendo con las 27 personas reales. Subirlo agrupa
-  // más pero junta los puntos: con 0.08 la distancia mínima entre dos personas
-  // caía de 142 a 88. En 0.03 la agrupación mejora un 29% y siguen holgados.
-  var COHESION = 0.03;
   var CERCANIA_NOMBRES = 0.4;   // el 40% más cercano a la cámara
   var GIRO = 0.00087;           // una vuelta cada dos minutos a 60 fotogramas
-
   // tintas: en reposo y con alguien señalado
-  var LINEA = 0.07, LINEA_TOCA = 0.5, LINEA_LEJOS = 0.05;
+  var LINEA = 0.12, LINEA_TOCA = 0.62, LINEA_LEJOS = 0.025;
   var PUNTO_MIN = 0.35, APAGADO = 0.05;
 
-  var nodos = [], aristas = [], porId = {}, circulos = [], marcas = [];
-  var central = null;
+  var nodos = [], nodosVisibles = [], centros = [], aristas = [], estructura = [], satelites = [];
+  var porId = {}, porCirculo = {}, circulos = [], marcas = [];
+  var central = null, circuloYoId = null, centroBajoPuntero = null;
+  var sinCirculoEnPortada = true;
   var A = 0, ALTO = 0, dpr = 1;
   // con tanto aire, la cámara tiene que estar lejos: si no, los de delante se
   // proyectan enormes y se salen de la pantalla
-  var camZ = 1500, foco = 900;
-  var rotX = -0.2, rotY = 0.35;
-  var vistaX = 0, vistaY = 0;
+  var camZ = 2800, camZObjetivo = 2800, foco = 900;
+  var camX = 0, camY = 0, camProfundidad = 0;
+  var camXObjetivo = 0, camYObjetivo = 0, camProfundidadObjetivo = 0;
+  var rotX = -0.1, rotY = -0.9;
+  var vistaX = 0, vistaY = 0, vistaXObjetivo = 0, vistaYObjetivo = 0;
   var movimiento = !quieto;
   var giro = GIRO;
   var circuloEnFoco = '', circuloFijado = '';
-  var senalado = null, fijado = null;
+  var senalado = null, fijado = null, bajoPuntero = null;
+  var refrescarCirculos = function () {};
   var arrastrando = false, tipoArrastre = 'mover', botonArrastre = 0;
   var movido = 0, ux = 0, uy = 0;
 
@@ -89,6 +76,14 @@
     circulos = (d.circulos || []).slice().sort(function (a, b) {
       return a.orden - b.orden;
     });
+    sinCirculoEnPortada = d.sin_circulo_en_portada !== false;
+    var circuloYo = circulos.find(function (c) {
+      return normalizar(c.nombre) === 'yo';
+    });
+    circuloYoId = circuloYo ? String(circuloYo.id) : null;
+    var idsCirculosActivos = circulos.filter(function (c) {
+      return !!c.en_portada && normalizar(c.nombre) !== 'yo';
+    }).map(function (c) { return String(c.id); });
     nodos = (d.personas || []).map(function (p, indice) {
       return {
         clave: 'p' + p.id,
@@ -109,7 +104,17 @@
         central: !!p.central,
         indice: indice,
         radio: 0,
-        vecinos: []
+        vecinos: [],
+        anclasPersona: [],
+        anclasCirculo: [],
+        componenteSinCirculo: -1,
+        visible: false,
+        fisicaX: 0,
+        fisicaY: 0,
+        velocidadX: 0,
+        velocidadY: 0,
+        realce: 1,
+        velocidadRealce: 0
       };
     });
 
@@ -119,6 +124,43 @@
     if (!central) {
       central = nodos.find(function (n) { return n.central; }) || null;
     }
+    nodos.forEach(function (n) {
+      n.visible = n === central || n.circuloId === circuloYoId ||
+        (n.circuloId !== null && idsCirculosActivos.indexOf(n.circuloId) !== -1);
+    });
+
+    centros = circulos.filter(function (c) {
+      return normalizar(c.nombre) !== 'yo' && !!c.en_portada;
+    }).map(function (c, indice) {
+      return {
+        clave: 'c' + c.id,
+        circuloId: String(c.id),
+        nombre: c.nombre,
+        indice: indice,
+        centro: true,
+        virtual: false,
+        fisicaX: 0,
+        fisicaY: 0,
+        velocidadX: 0,
+        velocidadY: 0,
+      };
+    });
+    if (sinCirculoEnPortada) {
+      centros.push({
+        clave: 'cninguno',
+        circuloId: 'ninguno',
+        nombre: 'Sin círculo',
+        indice: centros.length,
+        centro: true,
+        virtual: true,
+        fisicaX: 0,
+        fisicaY: 0,
+        velocidadX: 0,
+        velocidadY: 0,
+      });
+    }
+    porCirculo = {};
+    centros.forEach(function (c) { porCirculo[c.circuloId] = c; });
 
     aristas = [];
     (d.aristas || []).forEach(function (e) {
@@ -129,12 +171,56 @@
       b.vecinos.push(a);
     });
 
+    prepararAnclasSinCirculo();
+    nodos.forEach(function (n) {
+      if (n.circuloId === null) {
+        n.visible = sinCirculoEnPortada || n.anclasPersona.length > 0;
+      }
+    });
+    nodosVisibles = nodos.filter(function (n) { return n.visible; });
+
+    estructura = [];
+    nodosVisibles.forEach(function (n) {
+      if (n === central) return;
+      if (n.circuloId === null && n.anclasPersona.length) return;
+      var centro = n.circuloId === circuloYoId
+        ? central : porCirculo[n.circuloId === null ? 'ninguno' : n.circuloId];
+      if (centro) estructura.push({ a: centro, b: n, tipo: 'persona' });
+    });
+    if (central) {
+      centros.forEach(function (centro) {
+        estructura.push({ a: central, b: centro, tipo: 'circulo' });
+      });
+    }
+
+    // Sólo los puntos AISLADOS de verdad cuelgan de una línea secundaria: una
+    // persona sin círculo cuya única atadura a la red es su relación, y que
+    // además está sola (su componente sin círculo tiene un único miembro). Un
+    // grupo de gente sin círculo ya se lee como una nube junta; no se le teje
+    // una maraña de discontinuas encima. La línea es tenue para no fingir que
+    // el punto pertenece a un círculo.
+    var miembrosPorComponente = {};
+    nodosVisibles.forEach(function (n) {
+      if (n.circuloId !== null || !n.anclasPersona.length) return;
+      miembrosPorComponente[n.componenteSinCirculo] =
+        (miembrosPorComponente[n.componenteSinCirculo] || 0) + 1;
+    });
+    satelites = [];
+    nodosVisibles.forEach(function (n) {
+      if (n.circuloId !== null || !n.anclasPersona.length) return;
+      if (miembrosPorComponente[n.componenteSinCirculo] !== 1) return;
+      n.anclasPersona.forEach(function (ancla) {
+        satelites.push({ a: ancla, b: n });
+      });
+    });
+
     colocar();
     marcas = [];
     for (var m = 0; m < 72; m++) {
       marcas.push({ x: azar(), y: azar(), grande: m % 17 === 0 });
     }
     medir();
+    centrarCamara();
     prepararMandos();
     addEventListener('resize', medir);
     pintar();
@@ -146,152 +232,189 @@
   var semilla = 20260725;
   function azar() { return (semilla = semilla * 16807 % 2147483647) / 2147483647; }
 
-  // Direcciones bien repartidas por la esfera, una por círculo. Espiral de
-  // Fibonacci: determinista y sin acumular puntos en los polos.
+  // Corona abierta y tridimensional. Una esfera de Fibonacci dejaba cuatro o
+  // cinco círculos casi en columna al proyectarla; esta corona conserva aire
+  // en ambos ejes de pantalla y alterna profundidad para que siga siendo 3D.
   function ejesDeCirculos(cuantos) {
     var ejes = [];
-    var vuelta = Math.PI * (3 - Math.sqrt(5));
     for (var i = 0; i < cuantos; i++) {
-      var y = cuantos === 1 ? 0 : 1 - (i / (cuantos - 1)) * 2;
-      var r = Math.sqrt(Math.max(0, 1 - y * y));
-      var th = vuelta * i;
-      ejes.push({ x: Math.cos(th) * r, y: y, z: Math.sin(th) * r });
+      var angulo = -Math.PI / 2 + Math.PI / Math.max(2, cuantos) +
+        i * Math.PI * 2 / Math.max(1, cuantos);
+      ejes.push({
+        x: Math.cos(angulo) * 1.18,
+        y: Math.sin(angulo) * 0.76,
+        z: Math.sin(angulo * 2) * 0.55
+      });
     }
     return ejes;
   }
 
-  // Una dirección al azar dentro del cono que rodea a `eje`.
-  function dentroDelCono(eje, medioAngulo) {
-    // Base ortonormal a partir del eje.
-    var aux = Math.abs(eje.y) < 0.9 ? { x: 0, y: 1, z: 0 } : { x: 1, y: 0, z: 0 };
-    var ux = eje.y * aux.z - eje.z * aux.y;
-    var uy = eje.z * aux.x - eje.x * aux.z;
-    var uz = eje.x * aux.y - eje.y * aux.x;
-    var lu = Math.sqrt(ux * ux + uy * uy + uz * uz) || 1;
-    ux /= lu; uy /= lu; uz /= lu;
-    var vx = eje.y * uz - eje.z * uy;
-    var vy = eje.z * ux - eje.x * uz;
-    var vz = eje.x * uy - eje.y * ux;
-
-    var cosA = 1 - azar() * (1 - Math.cos(medioAngulo));
-    var sinA = Math.sqrt(Math.max(0, 1 - cosA * cosA));
-    var psi = azar() * Math.PI * 2;
-    var cp = Math.cos(psi), sp = Math.sin(psi);
-    return {
-      x: eje.x * cosA + (ux * cp + vx * sp) * sinA,
-      y: eje.y * cosA + (uy * cp + vy * sp) * sinA,
-      z: eje.z * cosA + (uz * cp + vz * sp) * sinA,
-    };
-  }
-
   function colocar() {
     semilla = 20260725;
-
-    // Un eje por círculo con gente dentro. El del centro no cuenta: esa
-    // persona vive en el origen.
-    var conCirculo = nodos.filter(function (n) {
-      return n !== central && n.circuloId !== null;
+    centros.concat(nodos).forEach(function (n) {
+      n.x = n.y = n.z = 0;
+      n.fisicaX = n.fisicaY = 0;
+      n.velocidadX = n.velocidadY = 0;
+      n.realce = 1;
+      n.velocidadRealce = 0;
     });
-    var ids = [];
-    conCirculo.forEach(function (n) {
-      if (ids.indexOf(n.circuloId) === -1) ids.push(n.circuloId);
-    });
-    var ejes = ejesDeCirculos(ids.length);
-    var medioAngulo = Math.max(0.35, Math.min(1.0, 1.25 / Math.sqrt(ids.length || 1)));
-    var ejePorCirculo = {};
-    ids.forEach(function (id, i) { ejePorCirculo[id] = ejes[i]; });
+    colocarPorCirculos();
+  }
 
-    function repartir(grupo, dentro, fuera) {
-      grupo.forEach(function (n, indice) {
-        var parte = grupo.length <= 1 ? 0.5 :
-          Math.pow((indice + 1) / (grupo.length + 1), 0.72);
-        n.radio = dentro + parte * (fuera - dentro);
-        var eje = n.circuloId === null ? null : ejePorCirculo[n.circuloId];
-        var dir;
-        if (eje) {
-          dir = dentroDelCono(eje, medioAngulo);
-          n.eje = eje;          // lo usa la fuerza de cohesión de abajo
-        } else {
-          // Sin círculo no hay grupo al que pertenecer: reparto libre.
-          var u = azar() * 2 - 1;
-          var th = azar() * Math.PI * 2;
-          var s = Math.sqrt(1 - u * u);
-          dir = { x: s * Math.cos(th), y: u, z: s * Math.sin(th) };
-          n.eje = null;
-        }
-        var r = n.radio * (0.94 + azar() * 0.12);
-        n.x = r * dir.x;
-        n.y = r * dir.y;
-        n.z = r * dir.z;
-        n.vx = n.vy = n.vz = 0;
-      });
-    }
-
-    if (central) {
-      central.x = central.y = central.z = 0;
-      central.vx = central.vy = central.vz = 0;
-      central.radio = 0;
-      repartir(nodos.filter(function (n) {
-        return n !== central && n.circuloId !== null;
-      }), RADIO_DIRECTO_DENTRO, RADIO_DIRECTO_FUERA);
-      repartir(nodos.filter(function (n) {
-        return n !== central && n.circuloId === null;
-      }), RADIO_INDIRECTO_DENTRO, RADIO_INDIRECTO_FUERA);
-    } else {
-      repartir(nodos, 64, RADIO_INDIRECTO_FUERA);
-    }
-
-    var vueltas = nodos.length > 120 ? 220 : 420;
-    for (var it = 0; it < vueltas; it++) {
-      for (var i = 0; i < nodos.length; i++) {
-        var a = nodos[i];
-        for (var j = i + 1; j < nodos.length; j++) {
-          var b = nodos[j];
-          var dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
-          var d2 = dx * dx + dy * dy + dz * dz + 0.01;
-          var d = Math.sqrt(d2), f = REPULSION / d2;
-          dx /= d; dy /= d; dz /= d;
-          if (a !== central) {
-            a.vx -= dx * f; a.vy -= dy * f; a.vz -= dz * f;
-          }
-          if (b !== central) {
-            b.vx += dx * f; b.vy += dy * f; b.vz += dz * f;
-          }
-        }
+  function gruposConCirculo() {
+    var grupos = {};
+    centros.forEach(function (centro) { grupos[centro.circuloId] = []; });
+    grupos.raiz = [];
+    nodosVisibles.forEach(function (n) {
+      if (n === central) return;
+      var id;
+      if (n.circuloId === null) {
+        if (n.anclasPersona.length) return;
+        id = 'ninguno';
+      } else if (n.circuloId === circuloYoId) {
+        id = 'raiz';
+      } else {
+        id = n.circuloId;
       }
-      aristas.forEach(function (e) {
-        var dx = e.b.x - e.a.x, dy = e.b.y - e.a.y, dz = e.b.z - e.a.z;
-        var d = Math.sqrt(dx * dx + dy * dy + dz * dz) + 0.01;
-        var largo = e.tipo === 'directa' ? LARGO_DIRECTO : LARGO_LAZO;
-        var f = (d - largo) * 0.012;
-        dx /= d; dy /= d; dz /= d;
-        if (e.a !== central) {
-          e.a.vx += dx * f; e.a.vy += dy * f; e.a.vz += dz * f;
-        }
-        if (e.b !== central) {
-          e.b.vx -= dx * f; e.b.vy -= dy * f; e.b.vz -= dz * f;
-        }
+      if (!grupos[id]) grupos[id] = [];
+      grupos[id].push(n);
+    });
+    return grupos;
+  }
+
+  function direccionEsfera(indice, cuantos, fase) {
+    var y = cuantos <= 1 ? 0 : 1 - 2 * (indice + 0.5) / cuantos;
+    var r = Math.sqrt(Math.max(0, 1 - y * y));
+    var th = (indice + fase) * Math.PI * (3 - Math.sqrt(5));
+    return { x: Math.cos(th) * r, y: y, z: Math.sin(th) * r };
+  }
+
+  // Cada grupo (la gente de un círculo, el corro de Nuria, un satélite) se
+  // reparte sobre una ESFERA alrededor de su centro, no sobre un plano. Un
+  // disco, por muy inclinado que estuviera, se ve de canto desde algún ángulo y
+  // vuelve a parecer plano; una esfera tiene volumen en los tres ejes, así que
+  // de frente, desde arriba o de lado siempre hay profundidad y se lee. El
+  // reparto es una espiral de Fibonacci (`direccionEsfera`): puntos regulares y
+  // deterministas, sin huecos ni columnas.
+  function colocarEnEsfera(n, centro, direccion, distancia) {
+    n.x = centro.x + direccion.x * distancia;
+    n.y = centro.y + direccion.y * distancia;
+    n.z = centro.z + direccion.z * distancia;
+  }
+
+  // «Sin círculo» sigue siendo una clasificación propia. Estas anclas sólo
+  // deciden dónde se ve cada persona: una pareja o amistad explícita puede
+  // acercarla a gente clasificada sin convertirla en miembro de su círculo.
+  function prepararAnclasSinCirculo() {
+    var sinCirculo = nodos.filter(function (n) { return n.circuloId === null; });
+    var vistos = {};
+    var numeroComponente = 0;
+    sinCirculo.forEach(function (inicio) {
+      if (vistos[inicio.clave]) return;
+      var cola = [inicio], componente = [], anclas = [];
+      vistos[inicio.clave] = true;
+      while (cola.length) {
+        var actual = cola.shift();
+        componente.push(actual);
+        actual.vecinos.forEach(function (otra) {
+          if (otra.circuloId === null) {
+            if (!vistos[otra.clave]) {
+              vistos[otra.clave] = true;
+              cola.push(otra);
+            }
+          } else if (otra.visible && anclas.indexOf(otra) === -1) {
+            anclas.push(otra);
+          }
+        });
+      }
+      componente.forEach(function (n) {
+        var directas = n.vecinos.filter(function (otra) {
+          return otra.circuloId !== null && otra.visible;
+        });
+        n.anclasPersona = directas.length ? directas : anclas.slice();
+        n.anclasCirculo = [];
+        n.anclasPersona.forEach(function (otra) {
+          if (otra.circuloId !== circuloYoId &&
+              n.anclasCirculo.indexOf(otra.circuloId) === -1) {
+            n.anclasCirculo.push(otra.circuloId);
+          }
+        });
+        n.componenteSinCirculo = numeroComponente;
       });
-      nodos.forEach(function (n) {
-        if (n === central) {
-          n.x = n.y = n.z = 0;
-          n.vx = n.vy = n.vz = 0;
-          return;
-        }
-        var d = Math.sqrt(n.x * n.x + n.y * n.y + n.z * n.z) + 0.01;
-        var f = (d - n.radio) * 0.05;
-        n.vx -= n.x / d * f; n.vy -= n.y / d * f; n.vz -= n.z / d * f;
-        // Cohesión: cada quien tira hacia la zona de su círculo. Sin esto la
-        // repulsión deshace el agrupamiento inicial en las primeras vueltas.
-        if (n.eje) {
-          n.vx += (n.eje.x * n.radio - n.x) * COHESION;
-          n.vy += (n.eje.y * n.radio - n.y) * COHESION;
-          n.vz += (n.eje.z * n.radio - n.z) * COHESION;
-        }
-        n.vx *= 0.82; n.vy *= 0.82; n.vz *= 0.82;
-        n.x += n.vx; n.y += n.vy; n.z += n.vz;
+      numeroComponente++;
+    });
+  }
+
+  function colocarCentros(radioPara) {
+    var ejes = ejesDeCirculos(centros.length);
+    centros.forEach(function (centro, indice) {
+      var radio = radioPara(centro, indice);
+      centro.x = ejes[indice].x * radio;
+      centro.y = ejes[indice].y * radio;
+      centro.z = ejes[indice].z * radio;
+    });
+  }
+
+  function colocarAlrededor(centro, grupo, numero) {
+    var total = grupo.length;
+    grupo.forEach(function (n, indice) {
+      var d = direccionEsfera(indice, total, numero * 0.7 + 0.3);
+      var distancia = 290 + (indice % 4) * 26;
+      colocarEnEsfera(n, centro, d, distancia);
+    });
+  }
+
+  function colocarCercaDeRaiz(grupo) {
+    var origen = { x: 0, y: 0, z: 0 };
+    var total = grupo.length;
+    grupo.forEach(function (n, indice) {
+      var d = direccionEsfera(indice, total, 0.9);
+      colocarEnEsfera(n, origen, d, 285 + (indice % 4) * 24);
+    });
+  }
+
+  function colocarSatelites() {
+    var porComponente = {};
+    nodosVisibles.forEach(function (n) {
+      if (n.circuloId !== null || !n.anclasPersona.length) return;
+      var clave = String(n.componenteSinCirculo);
+      if (!porComponente[clave]) porComponente[clave] = [];
+      porComponente[clave].push(n);
+    });
+    Object.keys(porComponente).forEach(function (clave, numero) {
+      var grupo = porComponente[clave];
+      var anclas = [];
+      grupo.forEach(function (n) {
+        n.anclasPersona.forEach(function (otra) {
+          if (anclas.indexOf(otra) === -1) anclas.push(otra);
+        });
       });
-    }
+      var promedio = anclas.reduce(function (suma, otra) {
+        suma.x += otra.x; suma.y += otra.y; suma.z += otra.z;
+        return suma;
+      }, { x: 0, y: 0, z: 0 });
+      promedio.x /= anclas.length;
+      promedio.y /= anclas.length;
+      promedio.z /= anclas.length;
+      var total = grupo.length;
+      grupo.forEach(function (n, indice) {
+        var d = direccionEsfera(indice, total, numero * 0.6 + 0.4);
+        var distancia = 205 + (indice % 4) * 24;
+        colocarEnEsfera(n, promedio, d, distancia);
+      });
+    });
+  }
+
+  // Una única composición: cuadrados bien separados y estrellas regulares.
+  // Las personas conservan siempre este sitio; enfocar mueve sólo la cámara.
+  function colocarPorCirculos() {
+    var grupos = gruposConCirculo();
+    colocarCentros(function (centro, indice) { return 700 + (indice % 2) * 50; });
+    centros.forEach(function (centro, numero) {
+      colocarAlrededor(centro, grupos[centro.circuloId] || [], numero);
+    });
+    colocarCercaDeRaiz(grupos.raiz || []);
+    colocarSatelites();
   }
 
   /* ── medidas ──────────────────────────────────────────────────────────── */
@@ -302,7 +425,7 @@
     lienzo.width = Math.max(1, Math.round(A * dpr));
     lienzo.height = Math.max(1, Math.round(ALTO * dpr));
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    camZ = A < 720 ? 1900 : 1500;
+    if (!fijado && !circuloFijado) camZObjetivo = camaraParaEstado();
   }
 
   /* ── tinta ────────────────────────────────────────────────────────────── */
@@ -320,39 +443,152 @@
   // pequeños siempre. De 1.2 a 8 píxeles de radio en pantalla.
   function escala(n) { return Math.max(0.6, Math.min(n.k, 1.6)); }
 
-  function radio(n) { return Math.max(1, radioBase(n) * escala(n)); }
+  function radio(n) {
+    return Math.max(1, radioBase(n) * escala(n) * (n.realce || 1));
+  }
 
   function proyectar() {
     var cx = Math.cos(rotX), sx = Math.sin(rotX);
     var cy = Math.cos(rotY), sy = Math.sin(rotY);
-    nodos.forEach(function (n) {
-      var x1 = n.x * cy - n.z * sy;
-      var z1 = n.x * sy + n.z * cy;
-      var y2 = n.y * cx - z1 * sx;
-      var z2 = n.y * sx + z1 * cx;
+    centros.concat(nodosVisibles).forEach(function (n) {
+      var x = n.x - camX, y = n.y - camY, z = n.z - camProfundidad;
+      var x1 = x * cy - z * sy;
+      var z1 = x * sy + z * cy;
+      var y2 = y * cx - z1 * sx;
+      var z2 = y * sx + z1 * cx;
       var zc = z2 + camZ;
       var k = foco / Math.max(zc, 60);
-      n.px = A / 2 + vistaX + x1 * k;
+      n.px = centroHorizontal() + vistaX + x1 * k;
       n.py = ALTO / 2 + vistaY + y2 * k;
       n.pz = zc;
       n.k = k;
     });
+    animarFisica();
+  }
+
+  // Radio en pantalla del anillo de allegados alrededor de la persona elegida.
+  function radioAnillo(cuantos) {
+    return Math.max(120, Math.min(235, 96 + cuantos * 15));
+  }
+
+  // El movimiento vivo de la red. Dos cosas a la vez, ninguna toca las
+  // posiciones base (todo son desvíos interpolados que vuelven a cero al soltar):
+  //  1) Al SEÑALAR con el ratón, la gente cercana se aparta del puntero. Esto
+  //     sigue vivo aunque haya una persona seleccionada: entrar en su ficha ya no
+  //     congela ese vaivén.
+  //  2) Al SELECCIONAR una persona (que no sea Nuria), sus allegados se recolocan
+  //     en un anillo a su alrededor; al SELECCIONAR un círculo, su gente hace lo
+  //     mismo alrededor del cuadrado. Así ni las relaciones ni un círculo entero
+  //     quedan en un abanico desordenado, sino como radios ordenados y legibles.
+  function animarFisica() {
+    var realzada = activo();
+    var repulsor = bajoPuntero || (fijado ? null : senalado);
+    var anillo = anilloActivo();
+
+    nodosVisibles.forEach(function (n) {
+      var destinoX = 0, destinoY = 0;
+      var enAnillo = anillo && n !== anillo.foco &&
+        indiceDefinido(anillo.indices, n.clave);
+      if (enAnillo) {
+        var i = anillo.indices[n.clave];
+        var ang = i * Math.PI * 2 / Math.max(1, anillo.total) - Math.PI / 2;
+        var R = radioAnillo(anillo.total);
+        destinoX = anillo.foco.px + Math.cos(ang) * R - n.px;
+        destinoY = anillo.foco.py + Math.sin(ang) * R - n.py;
+      } else if (repulsor && n !== repulsor && !(anillo && n === anillo.foco)) {
+        var dx = n.px - repulsor.px, dy = n.py - repulsor.py;
+        var distancia = Math.max(1, Math.hypot(dx, dy));
+        var fuerza = Math.max(0, 1 - distancia / 210) * 34;
+        destinoX = dx / distancia * fuerza;
+        destinoY = dy / distancia * fuerza;
+      }
+      var destinoRealce = (n === realzada || n === repulsor) ? 1.48 : 1;
+      if (quieto) {
+        n.fisicaX = destinoX;
+        n.fisicaY = destinoY;
+        n.realce = destinoRealce;
+      } else {
+        var paso = enAnillo ? 0.12 : 0.14;
+        n.fisicaX += (destinoX - n.fisicaX) * paso;
+        n.fisicaY += (destinoY - n.fisicaY) * paso;
+        n.realce += (destinoRealce - n.realce) * 0.14;
+      }
+      n.px += n.fisicaX;
+      n.py += n.fisicaY;
+    });
+  }
+
+  function indiceDefinido(mapa, clave) {
+    return Object.prototype.hasOwnProperty.call(mapa, clave);
+  }
+
+  // El anillo que se recoloca alrededor del foco actual: los allegados de una
+  // persona, o toda la gente de un círculo alrededor de su cuadrado. Devuelve
+  // null si no hay nada seleccionado. Nuria no forma anillo (cuelga de círculos).
+  function anilloActivo() {
+    var foco = null, gente = null;
+    if (fijado && fijado !== central) {
+      foco = fijado;
+      gente = fijado.vecinos.filter(function (v) { return v.visible; });
+    } else if (!fijado && circuloFijado && porCirculo[circuloFijado]) {
+      foco = porCirculo[circuloFijado];
+      gente = nodosVisibles.filter(function (n) {
+        return n !== central && enCirculoVisual(n, circuloFijado);
+      });
+    }
+    if (!foco || !gente || !gente.length) return null;
+    var indices = {};
+    gente.forEach(function (v, i) { indices[v.clave] = i; });
+    return { foco: foco, indices: indices, total: gente.length };
   }
 
   function activo() { return fijado || senalado; }
 
   function circuloActivo() {
-    return circuloFijado || circuloEnFoco;
+    return circuloFijado || circuloEnFoco ||
+      (centroBajoPuntero ? centroBajoPuntero.circuloId : '');
   }
 
   function enCirculo(n, id) {
     if (!id) return true;
+    if (n.centro) return n.circuloId === id;
     if (id === 'ninguno') return n.circuloId === null;
     return n.circuloId === id;
   }
 
+  function enCirculoVisual(n, id) {
+    if (!id) return true;
+    if (n.centro) return n.circuloId === id;
+    if (id === 'ninguno') return n.circuloId === null;
+    return n.circuloId === id || (n.circuloId === null &&
+      n.anclasCirculo.indexOf(id) !== -1);
+  }
+
+  function personasDelCirculo(id) {
+    return nodosVisibles.filter(function (n) {
+      return n !== central && enCirculoVisual(n, id);
+    }).sort(function (a, b) {
+      var directaA = enCirculo(a, id) ? 0 : 1;
+      var directaB = enCirculo(b, id) ? 0 : 1;
+      return directaA - directaB || a.nombre.localeCompare(b.nombre, 'es');
+    });
+  }
+
+  function centroHorizontal() {
+    return A / 2 + (A >= 720 ? Math.min(70, A * 0.04) : 0);
+  }
+
   function ligado(n, a) {
     return n === a || a.vecinos.indexOf(n) !== -1;
+  }
+
+  // A quién realza señalar/seleccionar a `a`. Regla normal: la persona y sus
+  // relaciones. Excepción única de Nuria (`central`): sus relaciones NO se
+  // realzan; su vínculo son los círculos, que se encienden aparte. Sólo ella
+  // queda a plena tinta, el resto de personas en gris.
+  function resaltada(n, a) {
+    if (a === central) return n === central;
+    return ligado(n, a);
   }
 
   /* ── dibujo ───────────────────────────────────────────────────────────── */
@@ -362,6 +598,7 @@
     ctx.clearRect(0, 0, A, ALTO);
     var a = activo();
     var circulo = circuloActivo();
+    var etiquetasOcupadas = [];
     ctx.fillStyle = tinta(0.09);
     marcas.forEach(function (marca) {
       var x = Math.round(marca.x * A), y = Math.round(marca.y * ALTO);
@@ -375,32 +612,118 @@
     proyectar();
 
     // el corte de profundidad para los nombres: el 40% más cercano
-    var fondos = nodos.map(function (n) { return n.pz; }).sort(function (x, y) {
+    var fondos = nodosVisibles.map(function (n) { return n.pz; }).sort(function (x, y) {
       return x - y;
     });
     var corte = fondos.length
       ? fondos[Math.max(0, Math.floor(fondos.length * CERCANIA_NOMBRES) - 1)]
       : 0;
 
-    // lazos: de un píxel y al borde de no verse
-    // lazos: de un píxel y al borde de no verse
+    // La estructura se lee siempre: raíz → círculo → persona. Las relaciones
+    // entre personas sólo aparecen al señalar una, evitando la maraña.
     ctx.lineWidth = 1;
-    aristas.forEach(function (e) {
-      var toca = a && (e.a === a || e.b === a);
-      var delCirculo = circulo &&
-        enCirculo(e.a, circulo) && enCirculo(e.b, circulo);
+    estructura.forEach(function (e) {
+      var idActivo = a ? circuloDePersona(a) : '';
+      // La línea de la persona señalada a su cuadrado se realza. La del cuadrado
+      // a Nuria (raíz → círculo) se mantiene apenas visible: sitúa el círculo
+      // sin robar protagonismo a la persona ni a sus relaciones.
+      var tocaPersona = a && (e.a === a || e.b === a);
+      var tocaCirculo = a && e.tipo === 'circulo' && e.b.circuloId === idActivo;
+      var delCirculo = circulo && e.tipo !== 'circulo' &&
+        (enCirculoVisual(e.a, circulo) || enCirculoVisual(e.b, circulo));
       ctx.beginPath();
       ctx.moveTo(e.a.px, e.a.py);
       ctx.lineTo(e.b.px, e.b.py);
       ctx.strokeStyle = tinta(
-        a ? (toca ? LINEA_TOCA : LINEA_LEJOS) :
-        circulo ? (delCirculo ? 0.32 : 0.025) : LINEA
+        a ? (tocaPersona ? 0.44 : tocaCirculo ? 0.12 : LINEA_LEJOS) :
+        circulo ? (delCirculo ? 0.38 : LINEA_LEJOS) :
+        e.tipo === 'circulo' ? 0.08 : LINEA
       );
       ctx.stroke();
     });
 
+    // Los satélites cuelgan de su relación con una línea secundaria: siempre
+    // discontinua y más floja que la estructura, para que ningún punto flote.
+    // Con alguien señalado, su relación pasa a la línea sólida de aristas.
+    ctx.setLineDash([2, 3]);
+    satelites.forEach(function (e) {
+      if (!e.a.visible || !e.b.visible) return;
+      if (a && (e.a === a || e.b === a)) return;
+      var toca = a && (ligado(e.a, a) || ligado(e.b, a));
+      var delCirculo = circulo &&
+        (enCirculoVisual(e.a, circulo) || enCirculoVisual(e.b, circulo));
+      ctx.beginPath();
+      ctx.moveTo(e.a.px, e.a.py);
+      ctx.lineTo(e.b.px, e.b.py);
+      ctx.strokeStyle = tinta(
+        a ? (toca ? 0.28 : LINEA_LEJOS) :
+        circulo ? (delCirculo ? 0.2 : LINEA_LEJOS) :
+        0.09
+      );
+      ctx.stroke();
+    });
+    ctx.setLineDash([]);
+
+    // Excepción única de Nuria: cuando ella es la seleccionada NO se dibujan sus
+    // relaciones personales, sino su conexión a los CÍRCULOS (las líneas raíz →
+    // círculo, ya realzadas arriba como `tocaPersona`). Nuria siempre cuelga de
+    // los cuadrados, no de las personas. El resto de la gente sí enseña sus
+    // relaciones al señalarla.
+    if (a && a !== central) {
+      aristas.forEach(function (e) {
+        if (!e.a.visible || !e.b.visible) return;
+        if (e.a !== a && e.b !== a) return;
+        ctx.beginPath();
+        ctx.moveTo(e.a.px, e.a.py);
+        ctx.lineTo(e.b.px, e.b.py);
+        ctx.strokeStyle = tinta(LINEA_TOCA);
+        ctx.stroke();
+      });
+    }
+
+    // Sólo los círculos activados en Ajustes forman parte de la red.
+    centros.slice().sort(function (m, n) { return n.pz - m.pz; })
+      .forEach(function (centro) {
+        var idActivo = a ? circuloDePersona(a) : '';
+        // Con Nuria seleccionada, TODOS los círculos se encienden: son su vínculo.
+        var encendido = (a === central) ||
+          (a && centro.circuloId === idActivo) ||
+          (circulo && centro.circuloId === circulo) ||
+          centro === centroBajoPuntero;
+        var lado = 11;
+        var opacidad = (a || circulo) ? (encendido ? 1 : 0.18) : 0.86;
+        ctx.setLineDash(centro.virtual ? [2, 2] : []);
+        if (encendido) {
+          ctx.fillStyle = tinta(1);
+          ctx.fillRect(
+            Math.round(centro.px - lado / 2),
+            Math.round(centro.py - lado / 2), lado, lado
+          );
+        } else {
+          ctx.strokeStyle = tinta(opacidad);
+          ctx.strokeRect(
+            Math.round(centro.px - lado / 2) + 0.5,
+            Math.round(centro.py - lado / 2) + 0.5, lado, lado
+          );
+        }
+        ctx.setLineDash([]);
+        ctx.font = '11px "Departure", ui-monospace, Consolas, monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = tinta(opacidad);
+        var etiquetaY = Math.round(centro.py + 10);
+        var anchoEtiqueta = ctx.measureText(centro.nombre).width;
+        ctx.fillText(centro.nombre, Math.round(centro.px), etiquetaY);
+        etiquetasOcupadas.push({
+          x: centro.px - anchoEtiqueta / 2 - 3,
+          y: etiquetaY - 2,
+          w: anchoEtiqueta + 6,
+          h: 17,
+        });
+      });
+
     // personas: puntos pequeños y llenos, de lejos a cerca
-    var enOrden = nodos.slice().sort(function (m, n) { return n.pz - m.pz; });
+    var enOrden = nodosVisibles.slice().sort(function (m, n) { return n.pz - m.pz; });
     enOrden.forEach(function (n) {
       var prof = 1 - Math.min(1, Math.max(0, (n.pz - camZ + 700) / 1400));
       var cerca = PUNTO_MIN + prof * (1 - PUNTO_MIN);
@@ -408,35 +731,53 @@
 
       ctx.beginPath();
       ctx.arc(n.px, n.py, r, 0, Math.PI * 2);
-      if (a) ctx.fillStyle = tinta(ligado(n, a) ? 1 : APAGADO);
-      else if (circulo) ctx.fillStyle = tinta(enCirculo(n, circulo) ? 1 : APAGADO);
+      if (a) ctx.fillStyle = tinta(resaltada(n, a) ? 1 : APAGADO);
+      else if (circulo) ctx.fillStyle = tinta(enCirculoVisual(n, circulo) ? 1 : APAGADO);
       else ctx.fillStyle = tinta(cerca);
       ctx.fill();
 
-      if (n.central || n === a) {
+      if (n === a) {
+        ctx.beginPath();
+        ctx.arc(n.px, n.py, r + 5, 0, Math.PI * 2);
         ctx.strokeStyle = tinta(1);
-        ctx.strokeRect(
-          Math.round(n.px - r - 5),
-          Math.round(n.py - r - 5),
-          Math.round((r + 5) * 2),
-          Math.round((r + 5) * 2)
-        );
+        ctx.stroke();
       }
 
       // el nombre: en reposo sólo los más cercanos; señalando, sólo los suyos
-      var conNombre = n.central || (a ? ligado(n, a) :
-        circulo ? enCirculo(n, circulo) : n.pz <= corte);
+      var conNombre = n.central || (a ? resaltada(n, a) :
+        circulo ? enCirculoVisual(n, circulo) : n.pz <= corte);
       if (!conNombre) return;
       ctx.font = '11px "Departure", ui-monospace, Consolas, monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.fillStyle = tinta((a || circulo) ? 1 : cerca);
-      ctx.fillText(n.nombre, Math.round(n.px), Math.round(n.py + r + 8));
+      var opacidadNombre = a
+        ? (resaltada(n, a) ? 1 : APAGADO)
+        : circulo
+          ? (enCirculoVisual(n, circulo) ? 1 : (n.central ? 0.16 : APAGADO))
+          : cerca;
+      ctx.fillStyle = tinta(opacidadNombre);
+      var nombreY = Math.round(n.py + r + 8);
+      var anchoNombre = ctx.measureText(n.nombre).width;
+      var caja = {
+        x: n.px - anchoNombre / 2 - 3,
+        y: nombreY - 2,
+        w: anchoNombre + 6,
+        h: 17,
+      };
+      var choca = etiquetasOcupadas.some(function (otra) {
+        return caja.x < otra.x + otra.w && caja.x + caja.w > otra.x &&
+          caja.y < otra.y + otra.h && caja.y + caja.h > otra.y;
+      });
+      if (choca && n !== a && !n.central) return;
+      ctx.fillText(n.nombre, Math.round(n.px), nombreY);
+      etiquetasOcupadas.push(caja);
     });
   }
 
   function bucle() {
-    if (movimiento && !arrastrando && !fijado) rotY += giro;
+    if (movimiento && !arrastrando && !fijado && !circuloFijado &&
+        !senalado && !circuloEnFoco && !centroBajoPuntero) rotY += giro;
+    actualizarCamara();
     pintar();
     requestAnimationFrame(bucle);
   }
@@ -450,9 +791,18 @@
 
   function buscar(mx, my) {
     var mejor = null, mejorD = 20;
-    nodos.forEach(function (n) {
+    nodosVisibles.forEach(function (n) {
       var d = Math.hypot(n.px - mx, n.py - my) - radio(n);
       if (d < mejorD) { mejorD = d; mejor = n; }
+    });
+    return mejor;
+  }
+
+  function buscarCentro(mx, my) {
+    var mejor = null, mejorD = 22;
+    centros.forEach(function (centro) {
+      var d = Math.hypot(centro.px - mx, centro.py - my);
+      if (d < mejorD) { mejorD = d; mejor = centro; }
     });
     return mejor;
   }
@@ -461,13 +811,61 @@
     return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   }
 
-  function seleccionar(n) {
-    fijado = n || null;
+  function circuloDePersona(n) {
+    if (!n || n === central || n.circuloId === circuloYoId) return '';
+    if (n.circuloId !== null) return n.circuloId;
+    if (circuloFijado && enCirculoVisual(n, circuloFijado)) return circuloFijado;
+    return n.anclasCirculo[0] || 'ninguno';
+  }
+
+  function seleccionarPersona(n) {
+    if (!n) return;
+    var contexto = circuloDePersona(n);
+    if (contexto) circuloFijado = contexto;
+    else circuloFijado = '';
+    fijado = n;
     senalado = null;
     verFicha(fijado);
-    if (mensaje) {
-      mensaje.textContent = n ? 'Seleccionada: ' + n.nombre : mensajeDelCirculo();
+    centrarEstado();
+    refrescarCirculos();
+    if (mensaje) mensaje.textContent = 'Seleccionada: ' + n.nombre;
+  }
+
+  function seleccionarCirculo(id) {
+    fijado = null;
+    senalado = null;
+    verFicha(null);
+    circuloFijado = id;
+    circuloEnFoco = '';
+    centrarEstado();
+    refrescarCirculos();
+  }
+
+  function vistaGeneral() {
+    fijado = null;
+    senalado = null;
+    circuloFijado = '';
+    circuloEnFoco = '';
+    verFicha(null);
+    centrarEstado();
+    refrescarCirculos();
+  }
+
+  function retroceder() {
+    if (fijado) {
+      var contexto = circuloDePersona(fijado);
+      fijado = null;
+      senalado = null;
+      verFicha(null);
+      circuloFijado = contexto;
+      if (!contexto) vistaGeneral();
+      else {
+        centrarEstado();
+        refrescarCirculos();
+      }
+      return;
     }
+    if (circuloFijado) vistaGeneral();
   }
 
   function mensajeDelCirculo() {
@@ -477,30 +875,82 @@
       return String(circulo.id) === id;
     });
     var nombre = id === 'ninguno' ? 'Sin círculo' : (c ? c.nombre : 'Círculo');
-    var cuantas = nodos.filter(function (n) { return enCirculo(n, id); }).length;
+    var cuantas = personasDelCirculo(id).length;
     return nombre + ': ' + cuantas + (cuantas === 1 ? ' persona' : ' personas');
   }
 
-  function camaraInicial() {
-    return A < 720 ? 1900 : 1500;
+  function camaraParaEstado() {
+    if (fijado) return A < 720 ? 1900 : 1450;
+    if (circuloFijado) return A < 720 ? 2100 : 1650;
+    if (A < 720) return 3400;
+    return ALTO < 820 ? 2900 : 2500;
+  }
+
+  function orientacionMasClara() {
+    // Esta orientación abre las estrellas locales de frente y conserva una
+    // profundidad visible entre círculos. Es deliberadamente estable: la red
+    // no debe reaparecer con otra composición cada vez que cambia su tamaño.
+    return { x: -0.16, y: -0.42 };
+  }
+
+  function centrarCamara() {
+    var orientacion = orientacionMasClara();
+    rotX = orientacion.x;
+    rotY = orientacion.y;
+    centrarEstado();
+    camX = camXObjetivo;
+    camY = camYObjetivo;
+    camProfundidad = camProfundidadObjetivo;
+    camZ = camZObjetivo;
+    vistaX = vistaXObjetivo;
+    vistaY = vistaYObjetivo;
+  }
+
+  function centrarEstado() {
+    var objetivo = fijado || (circuloFijado ? porCirculo[circuloFijado] : null);
+    camXObjetivo = objetivo ? objetivo.x : 0;
+    camYObjetivo = objetivo ? objetivo.y : 0;
+    camProfundidadObjetivo = objetivo ? objetivo.z : 0;
+    camZObjetivo = camaraParaEstado();
+    vistaXObjetivo = 0;
+    vistaYObjetivo = 0;
+  }
+
+  function actualizarCamara() {
+    var paso = quieto ? 1 : 0.045;
+    camX += (camXObjetivo - camX) * paso;
+    camY += (camYObjetivo - camY) * paso;
+    camProfundidad += (camProfundidadObjetivo - camProfundidad) * paso;
+    camZ += (camZObjetivo - camZ) * paso;
+    vistaX += (vistaXObjetivo - vistaX) * paso;
+    vistaY += (vistaYObjetivo - vistaY) * paso;
   }
 
   function cambiarZoom(cantidad) {
-    camZ = Math.max(500, Math.min(2400, camZ + cantidad));
+    camZObjetivo = Math.max(500, Math.min(4500, camZObjetivo + cantidad));
   }
 
   function moverVista(dx, dy) {
-    var limiteX = Math.min(320, A * 0.3);
-    var limiteY = Math.min(240, ALTO * 0.3);
-    vistaX = Math.max(-limiteX, Math.min(limiteX, vistaX + dx));
-    vistaY = Math.max(-limiteY, Math.min(limiteY, vistaY + dy));
+    var objetivo = fijado || (circuloFijado ? porCirculo[circuloFijado] : null);
+    var ox = objetivo ? objetivo.x : 0;
+    var oy = objetivo ? objetivo.y : 0;
+    var oz = objetivo ? objetivo.z : 0;
+    var extension = centros.concat(nodosVisibles).reduce(function (maximo, n) {
+      return Math.max(maximo, Math.hypot(n.x - ox, n.y - oy, n.z - oz));
+    }, 0) * foco / Math.max(600, camZ);
+    var limiteX = Math.max(A * 0.3, Math.min(A * 1.5, extension));
+    var limiteY = Math.max(ALTO * 0.3, Math.min(ALTO * 1.5, extension));
+    vistaXObjetivo = Math.max(-limiteX, Math.min(limiteX, vistaX + dx));
+    vistaYObjetivo = Math.max(-limiteY, Math.min(limiteY, vistaY + dy));
+    vistaX = vistaXObjetivo;
+    vistaY = vistaYObjetivo;
   }
 
   function prepararMandos() {
     function coincidencias() {
       var busca = normalizar(entradaBuscar ? entradaBuscar.value.trim() : '');
       if (!busca) return [];
-      return nodos.filter(function (persona) {
+      return nodosVisibles.filter(function (persona) {
         return normalizar(persona.nombre + ' ' + persona.nombreCompleto)
           .indexOf(busca) !== -1;
       }).slice(0, 6);
@@ -525,7 +975,7 @@
         if (mensaje) mensaje.textContent = 'No encuentro ese nombre';
         return;
       }
-      seleccionar(resultados[0]);
+      seleccionarPersona(resultados[0]);
       entradaBuscar.value = resultados[0].nombre;
       actualizarBusqueda();
       resultadosNombre.hidden = true;
@@ -547,7 +997,7 @@
         var n = porId['p' + boton.dataset.persona];
         if (!n) return;
         entradaBuscar.value = n.nombre;
-        seleccionar(n);
+        seleccionarPersona(n);
         resultadosNombre.hidden = true;
         if (botonLimpiar) botonLimpiar.hidden = false;
       });
@@ -557,7 +1007,7 @@
         entradaBuscar.value = '';
         botonLimpiar.hidden = true;
         resultadosNombre.hidden = true;
-        seleccionar(null);
+        vistaGeneral();
         // Con el dedo no se devuelve el foco: abriría el teclado otra vez.
         if (!matchMedia('(pointer: coarse)').matches) entradaBuscar.focus();
       });
@@ -571,15 +1021,23 @@
     var mover = document.getElementById('grafo-movimiento');
     var cerrar = document.getElementById('grafo-cerrar');
 
+    // La ficha resumida se pliega como «Explorar la red»: el rótulo es el botón,
+    // la × sigue cerrándola del todo. El estado se conserva entre selecciones.
+    var plegarFicha = document.getElementById('grafo-ficha-plegar');
+    if (plegarFicha && panel) {
+      var signoFicha = plegarFicha.querySelector('[data-signo]');
+      plegarFicha.addEventListener('click', function () {
+        var cerrado = panel.dataset.plegado === 'si';
+        panel.dataset.plegado = cerrado ? 'no' : 'si';
+        plegarFicha.setAttribute('aria-expanded', String(cerrado));
+        if (signoFicha) signoFicha.textContent = cerrado ? '−' : '+';
+      });
+    }
+
     if (menos) menos.addEventListener('click', function () { cambiarZoom(180); });
     if (mas) mas.addEventListener('click', function () { cambiarZoom(-180); });
     if (centrar) centrar.addEventListener('click', function () {
-      rotX = -0.2;
-      rotY = 0.35;
-      vistaX = 0;
-      vistaY = 0;
-      camZ = camaraInicial();
-      seleccionar(null);
+      vistaGeneral();
     });
     if (mover) {
       mover.setAttribute('aria-pressed', String(movimiento));
@@ -591,7 +1049,7 @@
       });
     }
     if (cerrar) cerrar.addEventListener('click', function () {
-      seleccionar(null);
+      retroceder();
       lienzo.focus();
     });
 
@@ -625,62 +1083,54 @@
 
   function montarCirculos() {
     if (!listaCirculos) return;
-    var opciones = circulos.map(function (c) {
+    var opciones = circulos.filter(function (c) {
+      return !!c.en_portada && normalizar(c.nombre) !== 'yo';
+    }).map(function (c) {
       return { id: String(c.id), nombre: c.nombre };
     });
-    if (nodos.some(function (n) { return n.circuloId === null; })) {
+    if (sinCirculoEnPortada) {
       opciones.push({ id: 'ninguno', nombre: 'Sin círculo' });
     }
     listaCirculos.innerHTML = opciones.map(function (c) {
-      var cuantas = nodos.filter(function (n) { return enCirculo(n, c.id); }).length;
+      var cuantas = nodosVisibles.filter(function (n) { return enCirculo(n, c.id); }).length;
       return '<button type="button" data-circulo="' + c.id + '" aria-pressed="false">' +
         '<span class="circulo-cuadrado" aria-hidden="true"></span>' +
         '<span>' + esc(c.nombre) + '</span><span class="circulo-cuenta">' +
         cuantas + '</span></button>';
     }).join('');
 
-    function refrescarBotones() {
+    refrescarCirculos = function () {
       listaCirculos.querySelectorAll('[data-circulo]').forEach(function (boton) {
         boton.setAttribute(
           'aria-pressed', String(boton.dataset.circulo === circuloFijado)
         );
       });
       if (mensaje && !activo()) mensaje.textContent = mensajeDelCirculo();
-    }
+    };
 
     listaCirculos.querySelectorAll('[data-circulo]').forEach(function (boton) {
       boton.addEventListener('mouseenter', function () {
         circuloEnFoco = boton.dataset.circulo;
-        refrescarBotones();
+        refrescarCirculos();
       });
       boton.addEventListener('mouseleave', function () {
         circuloEnFoco = '';
-        refrescarBotones();
+        refrescarCirculos();
       });
       boton.addEventListener('focus', function () {
         circuloEnFoco = boton.dataset.circulo;
-        refrescarBotones();
+        refrescarCirculos();
       });
       boton.addEventListener('blur', function () {
         circuloEnFoco = '';
-        refrescarBotones();
+        refrescarCirculos();
       });
       boton.addEventListener('click', function () {
-        circuloFijado = circuloFijado === boton.dataset.circulo
-          ? '' : boton.dataset.circulo;
-        circuloEnFoco = '';
-        refrescarBotones();
+        if (circuloFijado === boton.dataset.circulo && !fijado) vistaGeneral();
+        else seleccionarCirculo(boton.dataset.circulo);
       });
     });
-
-    if (botonTodos) {
-      botonTodos.addEventListener('click', function () {
-        circuloFijado = '';
-        circuloEnFoco = '';
-        refrescarBotones();
-        lienzo.focus();
-      });
-    }
+    refrescarCirculos();
   }
 
   // Dedos puestos ahora mismo. Uno gira; dos desplazan y, al separarse o
@@ -708,6 +1158,7 @@
       // Sólo con ratón: evita que arrastrar seleccione texto de la página.
       e.preventDefault();
       arrastrando = true; movido = 0;
+      bajoPuntero = null;
       botonArrastre = e.button;
       tipoArrastre = e.button === 0 ? 'girar' : 'mover';
       var p = xy(e); ux = p.x; uy = p.y;
@@ -750,7 +1201,9 @@
         var antesD = pellizco, antesX = centroX, antesY = centroY;
         medirToques();
         if (antesD > 0 && pellizco > 0) {
-          camZ = Math.max(500, Math.min(2400, camZ * (antesD / pellizco)));
+          camZObjetivo = Math.max(
+            500, Math.min(4500, camZObjetivo * (antesD / pellizco))
+          );
         }
         moverVista(centroX - antesX, centroY - antesY);
       }
@@ -766,10 +1219,22 @@
         moverVista(dx, dy);
       }
       ux = p.x; uy = p.y;
-    } else if (!fijado) {
+    } else {
       var n = buscar(p.x, p.y);
-      if (n !== senalado) { senalado = n; verFicha(senalado); }
-      lienzo.style.cursor = n ? 'pointer' : 'grab';
+      // El punto bajo el ratón alimenta el vaivén, también con alguien elegido:
+      // así entrar en una ficha no apaga el movimiento reactivo al puntero.
+      bajoPuntero = n;
+      if (!fijado) {
+        var nuevoCentro = n ? null : buscarCentro(p.x, p.y);
+        if (nuevoCentro !== centroBajoPuntero) {
+          centroBajoPuntero = nuevoCentro;
+          refrescarCirculos();
+        }
+        if (n !== senalado) { senalado = n; verFicha(senalado); }
+        lienzo.style.cursor = (n || centroBajoPuntero) ? 'pointer' : 'grab';
+      } else {
+        lienzo.style.cursor = n ? 'pointer' : 'grab';
+      }
     }
   });
 
@@ -803,7 +1268,16 @@
     terminarToque(e);
     if (ultimo && recorrido < 6 && puedeSeleccionar) {
       var elegido = buscar(p.x, p.y);
-      seleccionar(elegido && fijado !== elegido ? elegido : null);
+      var centroElegido = elegido ? null : buscarCentro(p.x, p.y);
+      if (elegido) {
+        if (fijado === elegido) retroceder();
+        else seleccionarPersona(elegido);
+      } else if (centroElegido) {
+        if (!fijado && circuloFijado === centroElegido.circuloId) vistaGeneral();
+        else seleccionarCirculo(centroElegido.circuloId);
+      } else {
+        retroceder();
+      }
     }
   });
 
@@ -811,6 +1285,9 @@
 
   lienzo.addEventListener('pointerleave', function () {
     arrastrando = false;
+    centroBajoPuntero = null;
+    bajoPuntero = null;
+    refrescarCirculos();
     if (!fijado) { senalado = null; verFicha(null); }
   });
 
@@ -829,7 +1306,7 @@
 
   addEventListener('keydown', function (e) {
     var escribiendo = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
-    if (e.key === 'Escape') seleccionar(null);
+    if (e.key === 'Escape') retroceder();
     if (escribiendo || document.activeElement !== lienzo) return;
     if (e.shiftKey && e.key === 'ArrowLeft') rotY -= 0.08;
     else if (e.shiftKey && e.key === 'ArrowRight') rotY += 0.08;

@@ -106,6 +106,71 @@
       });
     }
 
+    // 1 bis. Ajustes limita los accesos de círculo que caben en la portada.
+    var portadaCirculos = document.querySelector('[data-circulos-portada]');
+    if (portadaCirculos) {
+      var maximoPortada = Number(portadaCirculos.dataset.maximo) || 7;
+      var avisoPortada = portadaCirculos.querySelector('[data-aviso-limite]');
+      portadaCirculos.addEventListener('change', function (ev) {
+        var marcados = portadaCirculos.querySelectorAll('input:checked').length;
+        if (marcados <= maximoPortada) {
+          if (avisoPortada) avisoPortada.textContent = '';
+          return;
+        }
+        ev.target.checked = false;
+        if (avisoPortada) {
+          avisoPortada.textContent = 'Puedes elegir hasta ' + maximoPortada + '.';
+        }
+      });
+    }
+
+    var avisoGuardado = document.querySelector('[data-aviso-guardado]');
+    if (avisoGuardado) {
+      setTimeout(function () { avisoGuardado.hidden = true; }, 3200);
+    }
+
+    // 1 ter. La administración completa de círculos se pliega y pagina; sin
+    // JavaScript quedan visibles todas las filas como respaldo.
+    var administrarCirculos = document.querySelector('[data-circulos-administrar]');
+    if (administrarCirculos) {
+      var filasCirculos = Array.from(
+        administrarCirculos.querySelectorAll('[data-circulo-fila]')
+      );
+      var paginasCirculos = administrarCirculos.querySelector('[data-circulos-paginas]');
+      var paginaCirculos = 0;
+      var porPaginaCirculos = 5;
+
+      function pintarPaginaCirculos() {
+        var total = Math.max(1, Math.ceil(filasCirculos.length / porPaginaCirculos));
+        paginaCirculos = Math.max(0, Math.min(paginaCirculos, total - 1));
+        filasCirculos.forEach(function (fila, indice) {
+          fila.hidden = Math.floor(indice / porPaginaCirculos) !== paginaCirculos;
+        });
+        if (!paginasCirculos) return;
+        paginasCirculos.hidden = filasCirculos.length <= porPaginaCirculos;
+        var estado = paginasCirculos.querySelector('[data-circulos-pagina]');
+        var anterior = paginasCirculos.querySelector('[data-circulos-anterior]');
+        var siguiente = paginasCirculos.querySelector('[data-circulos-siguiente]');
+        if (estado) estado.textContent = 'Página ' + (paginaCirculos + 1) + ' de ' + total;
+        if (anterior) anterior.disabled = paginaCirculos === 0;
+        if (siguiente) siguiente.disabled = paginaCirculos === total - 1;
+      }
+
+      if (paginasCirculos) {
+        paginasCirculos.querySelector('[data-circulos-anterior]')
+          .addEventListener('click', function () {
+            paginaCirculos -= 1;
+            pintarPaginaCirculos();
+          });
+        paginasCirculos.querySelector('[data-circulos-siguiente]')
+          .addEventListener('click', function () {
+            paginaCirculos += 1;
+            pintarPaginaCirculos();
+          });
+      }
+      pintarPaginaCirculos();
+    }
+
     // 3. Tecla N: apuntar algo desde cualquier sitio. El destino lo calcula el
     //    servidor para conservar la pantalla a la que hay que volver.
     var escribir = document.querySelector('[data-atajo-n]');
@@ -1180,6 +1245,18 @@
       }
     }
 
+    function conservarPuntoVisible(elemento, cambio) {
+      var arriba = elemento.getBoundingClientRect().top;
+      if (cambio) cambio();
+      function corregir() {
+        window.scrollBy(0, elemento.getBoundingClientRect().top - arriba);
+      }
+      requestAnimationFrame(function () {
+        corregir();
+        requestAnimationFrame(corregir);
+      });
+    }
+
     // 9 quater. La ficha completa: cada bloque se pliega y entra en edición por su
     //        cuenta. Abrir uno no abre los demás. El ocultado lo enciende este
     //        JavaScript, así que sin él la ficha se ve entera, como siempre.
@@ -1199,12 +1276,8 @@
 
       if (plegar && cuerpo) {
         plegar.addEventListener('click', function () {
-          var posicion = window.scrollY;
-          pintarPliegue(plegar.getAttribute('aria-expanded') !== 'true');
-          window.scrollTo(0, posicion);
-          requestAnimationFrame(function () {
-            window.scrollTo(0, posicion);
-            requestAnimationFrame(function () { window.scrollTo(0, posicion); });
+          conservarPuntoVisible(plegar, function () {
+            pintarPliegue(plegar.getAttribute('aria-expanded') !== 'true');
           });
         });
       }
@@ -1216,17 +1289,13 @@
         editar.setAttribute('aria-pressed', String(arranca === 'si'));
 
         editar.addEventListener('click', function () {
-          var posicion = window.scrollY;
           var editando = bloque.dataset.edicion === 'si';
-          bloque.dataset.edicion = editando ? 'no' : 'si';
-          editar.setAttribute('aria-pressed', String(!editando));
-          // Entrar a editar un bloque plegado lo abre; no tendría sentido
-          // encender los botones de algo que no se ve.
-          if (!editando && cuerpo && cuerpo.hidden) pintarPliegue(true);
-          window.scrollTo(0, posicion);
-          requestAnimationFrame(function () {
-            window.scrollTo(0, posicion);
-            requestAnimationFrame(function () { window.scrollTo(0, posicion); });
+          conservarPuntoVisible(editar, function () {
+            bloque.dataset.edicion = editando ? 'no' : 'si';
+            editar.setAttribute('aria-pressed', String(!editando));
+            // Entrar a editar un bloque plegado lo abre; no tendría sentido
+            // encender los botones de algo que no se ve.
+            if (!editando && cuerpo && cuerpo.hidden) pintarPliegue(true);
           });
         });
       }
@@ -1236,11 +1305,7 @@
     // acción nativa posterior al clic, por eso la posición se reafirma al pintar.
     document.querySelectorAll('details.editar-registro > summary').forEach(function (resumen) {
       resumen.addEventListener('click', function () {
-        var posicion = window.scrollY;
-        requestAnimationFrame(function () {
-          window.scrollTo(0, posicion);
-          requestAnimationFrame(function () { window.scrollTo(0, posicion); });
-        });
+        conservarPuntoVisible(resumen);
       });
     });
 

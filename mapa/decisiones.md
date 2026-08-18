@@ -23,7 +23,7 @@ una buena idea, **no se hace: se dice**.
 | Idea | Qué pasó |
 | --- | --- |
 | Dibujar la red pixelada, a un tercio de resolución | Destrozaba las líneas finas y se comía la profundidad |
-| Anillos concéntricos por círculo | Se sustituyeron por cuadrados en la leyenda; nadie cambia de sitio |
+| Anillos concéntricos por círculo | Se sustituyeron por cuadrados dentro del lienzo y en los accesos de *Explorar la red* |
 | Fotos a 1 bit con tramado | A 256px el umbral destrozaba las caras. Ahora escala de grises |
 | Aplastar el eje Y de la red | Quedaba una cáscara plana |
 | Buscar puerto libre al arrancar | Rompía la dirección guardada en el móvil. Ahora 9765 fijo |

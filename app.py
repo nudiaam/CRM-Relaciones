@@ -42,15 +42,18 @@ RUTA_DB = BASE_DATOS / "datos.db"
 # hípica, universidad. Uno solo por persona, y la única forma de clasificar
 # gente que existe en la aplicación.
 CIRCULOS_DE_FABRICA = ("Amigos", "Familia", "Trabajo", "Barrio")
+MAX_CIRCULOS_PORTADA = 7  # «Sin círculo» cuenta como uno de los accesos
+AJUSTE_SIN_CIRCULO_PORTADA = "sin_circulo_en_portada"
 
 # Lo que queda pendiente lo tengo que hacer yo; por lo otro tengo que preguntar.
 TIPOS = ("pendiente", "preguntar")
 
 ESQUEMA = """
 CREATE TABLE IF NOT EXISTS circulo (
-    id      INTEGER PRIMARY KEY,
-    nombre  TEXT NOT NULL,
-    orden   INTEGER NOT NULL DEFAULT 0
+    id          INTEGER PRIMARY KEY,
+    nombre      TEXT NOT NULL,
+    orden       INTEGER NOT NULL DEFAULT 0,
+    en_portada  INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS persona (
     id            INTEGER PRIMARY KEY,
@@ -202,6 +205,20 @@ def poner_al_dia(con):
     if "resumen" not in columnas_nota:
         con.execute("ALTER TABLE nota ADD COLUMN resumen TEXT")
 
+    columnas_circulo = {
+        f["name"] for f in con.execute("PRAGMA table_info(circulo)")
+    }
+    if "en_portada" not in columnas_circulo:
+        con.execute(
+            "ALTER TABLE circulo ADD COLUMN en_portada INTEGER NOT NULL DEFAULT 0"
+        )
+        con.execute(
+            "UPDATE circulo SET en_portada = 1 WHERE id IN ("
+            " SELECT id FROM circulo ORDER BY orden, id LIMIT ?"
+            ")",
+            (MAX_CIRCULOS_PORTADA,),
+        )
+
     columnas_audio = {
         f["name"] for f in con.execute("PRAGMA table_info(audio)")
     }
@@ -302,7 +319,8 @@ def preparar():
         if nueva:
             for i, nombre in enumerate(CIRCULOS_DE_FABRICA):
                 con.execute(
-                    "INSERT INTO circulo (nombre, orden) VALUES (?, ?)", (nombre, i)
+                    "INSERT INTO circulo (nombre, orden, en_portada) VALUES (?, ?, 1)",
+                    (nombre, i),
                 )
         if not con.execute(
             "SELECT 1 FROM ajuste WHERE clave = 'llave'"
@@ -628,13 +646,21 @@ def portada(request: Request):
     """El grafo, siempre. Aunque haya una sola persona: lo primero que se ve al
     abrir la app es la red, nunca una lista con filtros."""
     con = conexion()
+    ajuste_sin_circulo = con.execute(
+        "SELECT valor FROM ajuste WHERE clave = ?",
+        (AJUSTE_SIN_CIRCULO_PORTADA,),
+    ).fetchone()
+    mostrar_sin_circulo = (
+        ajuste_sin_circulo is None or ajuste_sin_circulo["valor"] == "1"
+    )
     datos = {
         "cuantas_personas": con.execute(
             "SELECT COUNT(*) AS n FROM persona"
         ).fetchone()["n"],
         "cuantos_circulos": con.execute(
-            "SELECT COUNT(*) AS n FROM circulo"
-        ).fetchone()["n"],
+            "SELECT COUNT(*) AS n FROM circulo "
+            "WHERE en_portada = 1 AND lower(trim(nombre)) <> 'yo'"
+        ).fetchone()["n"] + int(mostrar_sin_circulo),
         "circulos": circulos(con),
     }
     con.close()
@@ -644,7 +670,24 @@ def portada(request: Request):
 @app.get("/ajustes")
 def ajustes(request: Request):
     con = conexion()
-    datos = {"circulos": circulos(con)}
+    todos_los_circulos = circulos(con)
+    circulos_ajustes = [
+        circulo for circulo in todos_los_circulos
+        if circulo["nombre"].strip().casefold() != "yo"
+    ]
+    sin_circulo = con.execute(
+        "SELECT valor FROM ajuste WHERE clave = ?",
+        (AJUSTE_SIN_CIRCULO_PORTADA,),
+    ).fetchone()
+    datos = {
+        "circulos": todos_los_circulos,
+        "circulos_ajustes": circulos_ajustes,
+        "max_circulos_portada": MAX_CIRCULOS_PORTADA,
+        "sin_circulo_en_portada": sin_circulo is None or sin_circulo["valor"] == "1",
+        "personas_sin_circulo": con.execute(
+            "SELECT COUNT(*) AS n FROM persona WHERE circulo_id IS NULL"
+        ).fetchone()["n"],
+    }
     con.close()
     return plantillas.TemplateResponse(request, "ajustes.html", datos)
 
@@ -1014,6 +1057,46 @@ def crear_circulo(nombre: str = Form(""), volver: str = Form("/personas")):
             )
         con.close()
     return vuelve(volver, "/personas")
+
+
+@app.post("/circulos/portada")
+def elegir_circulos_portada(
+    circulos_portada: list[str] = Form(default=[]),
+    volver: str = Form("/ajustes#circulos-portada"),
+):
+    elegidos = []
+    for valor in circulos_portada:
+        if valor == "ninguno" and valor not in elegidos:
+            elegidos.append(valor)
+        elif valor.isdigit() and int(valor) not in elegidos:
+            elegidos.append(int(valor))
+        if len(elegidos) == MAX_CIRCULOS_PORTADA:
+            break
+    con = conexion()
+    existentes = {
+        f["id"] for f in con.execute(
+            "SELECT id FROM circulo WHERE lower(trim(nombre)) <> 'yo' "
+            "ORDER BY orden, id"
+        )
+    }
+    mostrar_sin_circulo = "ninguno" in elegidos
+    elegidos = [
+        circulo_id for circulo_id in elegidos
+        if isinstance(circulo_id, int) and circulo_id in existentes
+    ]
+    with con:
+        con.execute("UPDATE circulo SET en_portada = 0")
+        con.executemany(
+            "UPDATE circulo SET en_portada = 1 WHERE id = ?",
+            [(circulo_id,) for circulo_id in elegidos],
+        )
+        con.execute(
+            "INSERT INTO ajuste (clave, valor) VALUES (?, ?) "
+            "ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
+            (AJUSTE_SIN_CIRCULO_PORTADA, "1" if mostrar_sin_circulo else "0"),
+        )
+    con.close()
+    return vuelve(volver, "/ajustes#circulos-portada")
 
 
 @app.post("/circulo/{circulo_id}")
@@ -3150,8 +3233,8 @@ def borrar_audio(audio_id: int, volver: str = Form("/audios")):
 
 
 # --------------------------------------------------------------------------
-# 5. el JSON de la red. Sólo personas: los temas ya no existen, el circulo
-#    hace ese trabajo. Los ids de las aristas van prefijados: p3.
+# 5. el JSON de la red. Sólo personas, clasificadas por círculo. Los ids de
+#    las aristas van prefijados: p3.
 # --------------------------------------------------------------------------
 
 COSAS_EN_LA_RED = 3       # cuántas pendientes y cuántas por preguntar
@@ -3243,38 +3326,28 @@ def api_grafo():
                  "etiqueta": f["etiqueta_inversa"] or f["etiqueta"]}
             )
 
-    # Aristas: quien está en el círculo «Yo» ocupa el centro. Toda persona con
-    # círculo se enlaza directamente con ella; quien no tiene círculo sólo
-    # aparece a través de otras personas. Las relaciones y quedadas compartidas
-    # siguen tejiendo el resto de la red.
+    # Las únicas parejas entre personas son relaciones explícitas. Los enlaces
+    # limpios entre cuadrados de círculo y su gente se construyen en el lienzo;
+    # compartir una quedada tampoco presupone que sus asistentes se conozcan.
     parejas = {}
     for f in con.execute("SELECT persona_a, persona_b FROM relacion"):
         pareja = (min(f[0], f[1]), max(f[0], f[1]))
         parejas[pareja] = "relacion"
-    for f in con.execute(
-        "SELECT a.persona_id AS a, b.persona_id AS b FROM nota_persona a"
-        "  JOIN nota_persona b ON a.nota_id = b.nota_id AND a.persona_id < b.persona_id"
-        " GROUP BY a.persona_id, b.persona_id"
-    ):
-        pareja = (f["a"], f["b"])
-        parejas.setdefault(pareja, "quedada")
 
-    if central_id is not None:
-        for p in personas:
-            if p["id"] == central_id:
-                continue
-            pareja = (min(central_id, p["id"]), max(central_id, p["id"]))
-            if p["circulo_id"] is None:
-                parejas.pop(pareja, None)
-            else:
-                parejas[pareja] = "directa"
+    ajuste_sin_circulo = con.execute(
+        "SELECT valor FROM ajuste WHERE clave = ?",
+        (AJUSTE_SIN_CIRCULO_PORTADA,),
+    ).fetchone()
 
     datos = {
         "generado": ahora_iso(),
         "central_id": central_id,
         "circulos": [dict(f) for f in con.execute(
-            "SELECT id, nombre, orden FROM circulo ORDER BY orden, id"
+            "SELECT id, nombre, orden, en_portada FROM circulo ORDER BY orden, id"
         )],
+        "sin_circulo_en_portada": (
+            ajuste_sin_circulo is None or ajuste_sin_circulo["valor"] == "1"
+        ),
         "personas": personas,
         "aristas": [
             {"a": f"p{a}", "b": f"p{b}", "tipo": tipo}

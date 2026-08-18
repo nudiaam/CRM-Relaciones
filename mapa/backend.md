@@ -28,6 +28,7 @@ Busca el ancla con `grep`; el número es orientativo.
 | --- | --- | --- |
 | Cambiar el esquema o migrar la base | `poner_al_dia()` · 116 | `def poner_al_dia` |
 | Añadir un círculo de fábrica | 39 | `CIRCULOS_DE_FABRICA` |
+| Cambiar el máximo de accesos de la portada | 45 | `MAX_CIRCULOS_PORTADA` |
 | Tocar cómo se dice una fecha en pantalla | 194–326 | `def cuanto`, `def hace`, `def fecha_natural` |
 | Cambiar quién entra sin llave | `puerta()` · 352 | `async def puerta` |
 | Tocar el nombre visible (apodo manda) | 416 | `NOMBRE_VISIBLE_SQL` |
@@ -68,10 +69,19 @@ en `estatico/`, pero se sirven desde la raíz con su tipo MIME propio.
 `/audio/{id}/volver-a-analizar` · `/audio/{id}/enviar-a-qwen` ·
 `/audio/{id}/persona/{clave}/resolver` · `/audio/{id}/persona/{clave}/eliminar` ·
 `/audio/{id}/persona/{clave}/confirmar` ·
-`/circulo` · `/circulo/{id}` · `/circulo/{id}/mover` · `/circulo/{id}/borrar`
+`/circulo` · `/circulos/portada` · `/circulo/{id}` · `/circulo/{id}/mover` · `/circulo/{id}/borrar`
 
 Casi todas las POST terminan en redirección 303. Devuelven JSON `GET /api/grafo`
 y `POST /audio`: esta última la llama un fetch desde el móvil, no un formulario.
+
+`GET /api/grafo` devuelve únicamente líneas `relacion`, procedentes de filas
+explícitas de esa tabla. La jerarquía raíz → círculos → personas se construye en
+el lienzo. Compartir una quedada no crea una pareja: la coincidencia permanece
+en `nota_persona` y en las fichas, sin afirmar que todos se conocen. Cada círculo
+incluye `en_portada`; `POST /circulos/portada` guarda hasta siete selecciones,
+contando el valor de sistema `ninguno`. La preferencia de *Sin círculo* se guarda
+en `ajuste.sin_circulo_en_portada`; nunca se escribe como un círculo real ni se
+modifica el `circulo_id` de una persona para colocarla en la red.
 
 ## Notas y captura manual
 

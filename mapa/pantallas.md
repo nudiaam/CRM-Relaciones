@@ -6,7 +6,7 @@ extiende de ella.
 | Archivo | Ruta | Líneas |
 | --- | --- | --- |
 | `base.html` | todas | ~40 |
-| `grafo.html` | `/` | ~59 |
+| `grafo.html` | `/` | ~73 |
 | `personas.html` | `/personas` | ~180 |
 | `ficha.html` | `/persona/{id}` | ~380 |
 | `notas.html` | `/nota` | ~230 |
@@ -14,7 +14,7 @@ extiende de ella.
 | `nota.html` | `/nota/{id}` | ~130 |
 | `_grabadora.html` | incluida | ~30 |
 | `_audios_lista.html` | incluida | ~25 |
-| `ajustes.html` | `/ajustes` | ~95 |
+| `ajustes.html` | `/ajustes` | ~120 |
 | `entrar.html` | `/entrar` | ~25 |
 
 ## `ficha.html` — la más grande
@@ -64,6 +64,25 @@ El paso 02 del alta tiene **dos maneras** de enlazar, y se pueden usar a la vez:
 
 Si alguien sale en las dos, **manda la fila suelta**: el grupo se aplica después
 y salta a quien ya está enlazado.
+
+## `grafo.html`
+
+*Explorar la red* conserva búsqueda, accesos de círculo y cámara. Hay una sola
+composición estable; `.grafo-pie-red` contiene únicamente *Cómo moverte*. El
+lienzo dibuja los círculos activos elegidos en Ajustes y deja fuera sus cuadrados
+desactivados. *Ver todos* enlaza directamente con `#circulos-portada` en Ajustes.
+*Yo* es la excepción: Nuria ocupa el origen y ese cuadrado no se pinta.
+
+## `ajustes.html`
+
+Dentro de *Círculos*, `#circulos-portada` permite elegir hasta siete círculos para
+*Explorar la red*. Es un formulario HTML normal hacia `/circulos/portada`; el
+JavaScript impide marcar de más y el servidor vuelve a aplicar el límite. Activos
+y desactivados aparecen en grupos separados; al guardar se confirma brevemente
+en el lado izquierdo del pie. *Sin círculo* cuenta dentro del máximo, tiene una
+fila fija en la administración y puede mostrarse aunque esté vacío. *Yo* no
+aparece. La administración completa vive en `details.circulos-administrar` y
+pagina cinco filas por pantalla sin crear desplazamiento interno.
 
 El mismo componente vive también en la ficha, dentro del bloque *Relaciones*,
 apuntando a `/persona/{id}/relaciones`. Los dos comparten estilos y el bloque

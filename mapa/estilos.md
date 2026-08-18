@@ -112,6 +112,14 @@ se retoma, hay que colorear **también esos dos hijos**, no sólo el contenedor.
 - `.grafo-mandos button` alcanza también la barra de título de *Explorar la
   red*, porque es un `<button>`. Cualquier regla para esa barra necesita más
   especificidad.
+- `.circulos-portada` es la subsección de Ajustes para elegir los accesos breves
+  de *Explorar la red*: dos columnas en escritorio, una en móvil y controles de
+  al menos 40px. Sus casillas anulan `appearance` y usan un cuadrado relleno con
+  las variables inversas; no deben recuperar el azul nativo. Sus grupos
+  `.circulos-portada-grupo` separan activos y desactivados con aire y filete, y
+  `.circulos-guardados` confirma temporalmente el guardado en el pie. La lista
+  completa se pliega con `.circulos-administrar` y su paginación usa
+  `.circulos-paginas[hidden]` para no reservar hueco cuando sólo hay una página.
 - Bloque **captura por voz** al final del CSS. El botón flotante `.voz` va
   `position: fixed` abajo a la derecha, respetando la zona segura. Los cuadrados
   «rec» (`.voz-icono`, `.voz-punto`) se pintan con `background: currentColor`,

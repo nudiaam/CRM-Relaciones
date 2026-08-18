@@ -58,14 +58,14 @@ Dos palabras **prohibidas**, porque nombraron conceptos que se eliminaron:
 ## Modelo de datos
 
 ```
-circulo(id, nombre, orden)
+circulo(id, nombre, orden, en_portada)
 persona(id, nombre, apodo, circulo_id, color, cumple, notas_rapidas, foto, creada)
 hecho(id, persona_id, texto, creado)
 hilo(id, persona_id, texto, abierto_desde, cerrado_el, tipo)
 nota(id, fecha, canal, texto, resumen, creada)
 nota_persona(nota_id, persona_id)
 relacion(persona_a, persona_b, etiqueta, etiqueta_inversa)
-ajuste(clave, valor)                          -- sólo guarda la llave de red
+ajuste(clave, valor)                          -- llave de red y preferencias locales
 ```
 
 Lo que no es evidente:
@@ -74,7 +74,8 @@ Lo que no es evidente:
   listas, búsquedas, selecciones y red. El nombre completo sólo reaparece como
   subtítulo en la ficha completa y en la ficha rápida de Personas.
 - Una **nota** puede mencionar a varias personas, por eso no cuelga de una
-  persona: hay tabla intermedia. Es lo que teje la red sin trabajo extra.
+  persona: hay tabla intermedia. La coincidencia queda registrada en las
+  fichas, pero no crea relaciones ni líneas entre todos sus asistentes.
   Guarda además un `resumen` opcional: las fichas compactas enseñan el resumen
   y la ficha completa enseña siempre el texto íntegro. Las antiguas, sin
   resumen, usan su texto como alternativa compacta.
@@ -88,7 +89,10 @@ Lo que no es evidente:
   gente que existe**. No lleva frecuencia asociada y el sistema no deduce nada
   de él. De fábrica, en una base nueva: Amigos, Familia, Trabajo y Barrio. Se
   pueden crear, renombrar, reordenar y borrar; al borrar uno, su gente se queda
-  sin círculo pero **no se borra** (`ON DELETE SET NULL`).
+  sin círculo pero **no se borra** (`ON DELETE SET NULL`). `en_portada` decide
+  cuáles aparecen en *Explorar la red*: hasta siete contando el acceso fijo
+  *Sin círculo*. Un círculo desactivado tampoco se dibuja. *Yo* no se ofrece ni
+  se administra: sólo identifica a la persona raíz.
 - **canal** es un campo de texto libre de la quedada, no de la persona. La app
   sugiere los ya usados; se puede escribir cualquier otro.
 - **relacion**: `etiqueta` describe qué es B respecto de A; `etiqueta_inversa`
@@ -132,7 +136,9 @@ Lo que no es evidente:
    sólo enseña grabaciones cuyo archivo sigue realmente en la carpeta. `/nota/{id}`
    conserva el recorrido para cambiar una quedada, incluidos sus dos textos,
    fecha, canal y personas.
-5. `/ajustes` contiene modo día/noche, administración de círculos y copia de todo.
+5. `/ajustes` contiene modo día/noche, los siete accesos breves de la portada y
+   la administración plegada y paginada de círculos, incluido el sistema
+   *Sin círculo*, además de copia de todo.
 
 La navegación principal muestra siempre: *Red*, *Personas*, *Notas* y *Ajustes*.
 
@@ -216,30 +222,46 @@ de los nombres, la red no necesita fingirlo.
   apuntado algo de esa persona (`2 + √notas·0.9`, tope 5) y la profundidad lo
   corrige acotada (`escala()` entre 0.6 y 1.6), así que en pantalla van de 1.2 a
   8px. La profundidad también aclara el punto de forma continua, nunca a saltos.
-- **Las líneas, de 1px y al 7% de tinta**: casi al borde de no verse. Una red se
-  lee bien cuando está medio vacía.
-- **No hay anillos concéntricos.** Los círculos se muestran como cuadrados en
-  *Explorar la red*. Al pasar o enfocar se iluminan temporalmente sus personas;
-  al pulsar, la selección queda fijada. Nadie cambia de lugar.
+- **Las líneas son de 1px.** En reposo sólo se dibuja la jerarquía limpia
+  raíz → cuadrados de círculo → personas. Las relaciones entre dos personas
+  aparecen únicamente cuando una de ellas está señalada o seleccionada.
+- **No hay anillos concéntricos en la vista general.** Sólo los círculos activos
+  en Ajustes aparecen como cuadrados con nombre. *Yo* no se pinta y *Sin círculo*
+  usa un cuadrado discontinuo cuando está activo.
 - **Los nombres no se enseñan todos**: sólo los del 40% más cercano a la cámara
   (`CERCANIA_NOMBRES`), y al señalar a alguien sólo el suyo y los de sus
   conexiones. Siempre usan el nombre habitual si existe y se dibujan sueltos,
   en Departure a 11px: no llevan foto, fondo ni caja.
 - **Al señalar, el contraste es bestia a propósito**: esa persona y sus
   conexiones a plena tinta, todo lo demás al 5%.
-- La persona cuyo círculo se llama **Yo** es el origen estable de la red y se
-  mantiene en `(0, 0, 0)`. Las personas con círculo ocupan el volumen directo,
-  entre radios 220 y 430, y se enlazan con ella. Quienes no tienen círculo son
-  indirectas: ocupan el volumen exterior, entre 500 y 700, y nunca reciben un
-  enlace directo al centro.
-- La colocación y las fuerzas usan X, Y y Z con la misma amplitud. No se aplasta
-  el eje vertical ni se construye una cáscara plana.
-- La cámara está lejos (`camZ` 1500, y 1900 en pantalla estrecha) para que los
-  puntos cercanos no se proyecten enormes.
+- La persona del círculo **Yo** —Nuria en los datos actuales— es la raíz estable
+  en `(0, 0, 0)`, sin cuadrado propio. Los demás cuadrados se reparten ampliamente
+  por el volumen y cada grupo forma una estrella regular, abierta y determinista
+  alrededor del suyo. Hay una sola composición de la red, sin selector de orden.
+- Una persona sin círculo relacionada explícitamente con gente clasificada se
+  coloca como satélite de esas personas, o como puente si el componente alcanza
+  varios círculos activos. Es sólo una colocación visual: conserva
+  `circulo_id = NULL`, nunca hereda el círculo ajeno y las quedadas no cuentan.
+  Los componentes sin ancla sólo aparecen alrededor del cuadrado *Sin círculo*
+  cuando ese acceso está activo.
+- Sólo las filas de `relacion` crean líneas entre dos personas. Coincidir en una
+  quedada no presupone que todos sus asistentes se conozcan.
+- La colocación usa X, Y y Z. Al señalar con ratón, la persona se acerca un poco
+  y aparta suavemente los puntos próximos, sin muelles ni rebotes. Señalar un
+  cuadrado resalta el círculo completo sin mover la cámara. Al pulsar un círculo
+  o una persona sólo cambia el objetivo de cámara: los puntos conservan su sitio
+  y la aproximación se interpola fotograma a fotograma. Pulsar el fondo o
+  `Escape` retrocede persona → círculo → vista general.
+- La cámara general adapta su distancia al espacio disponible. Zoom, enfoque,
+  desplazamiento y retroceso comparten objetivos interpolados; nunca hay un
+  salto ni una disposición nueva tras el clic. `prefers-reduced-motion` es la
+  única excepción y aplica el estado directamente.
 - El giro automático es de 0.00087 radianes por fotograma: una vuelta cada dos
   minutos. Calmado, pero vivo.
-- La caja *Explorar la red* integra resultados de nombres y los cuadrados de
-  círculo, además de acercar, alejar, centrar y pausar el giro. No usa
+- La caja *Explorar la red* integra resultados de nombres y hasta siete accesos
+  de círculo elegidos en Ajustes —nunca *Yo*—, además de acercar, alejar, centrar
+  y pausar el giro. *Ver todos* lleva a la subsección correspondiente de Ajustes.
+  No usa
   desplegables nativos. El botón izquierdo arrastrado gira; el derecho o el
   central desplazan dentro de un límite; la rueda controla el zoom. Las flechas
   desplazan, Mayúsculas más flechas giran y *Centrar* restablece la cámara.
