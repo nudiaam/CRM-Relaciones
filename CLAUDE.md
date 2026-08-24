@@ -1697,3 +1697,13 @@ además, ni al alejar al máximo entraba entera. Cada cosa tenía su causa:
   ficha completa, captura manual, archivador, descripción y nombre más largo,
   sin errores de consola. La base real no se modificó.
 - Recurso: `estilo.css?v=20260824b`.
+
+### 2026-08-24 — Ejecutable actualizado
+
+- Se reconstruyó `Relaciones.exe` con los cambios actuales y las dependencias
+  de paquete compatibles con Python 3.12. El archivo resultante ocupa 176,5 MB;
+  el grueso corresponde al reconocimiento de voz local incluido en la app.
+- Se arrancó el ejecutable desde una carpeta aislada, creó allí una base nueva
+  y respondió correctamente en `/salud`. Después se cerraron únicamente los
+  procesos de esa prueba y se retiró la carpeta temporal; `datos.db` y los
+  audios reales no se tocaron.
