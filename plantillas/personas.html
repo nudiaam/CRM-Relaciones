@@ -52,6 +52,12 @@
             </div>
           </fieldset>
         </div>
+        <div class="alta-descripcion">
+          <label for="persona-descripcion">Descripción breve</label>
+          <textarea class="descripcion-campo" id="persona-descripcion"
+                    name="notas_rapidas" maxlength="{{ max_descripcion_persona }}" rows="3"
+                    placeholder="Una impresión general que te ayude a recordarla"></textarea>
+        </div>
       </div>
     </section>
 
@@ -242,13 +248,13 @@
         {% if persona_resumen.circulo %}<span class="donde">{{ persona_resumen.circulo }}</span>{% endif %}
       </div>
     </header>
+    {% if persona_resumen.notas_rapidas %}
+    <p class="archivo-nota">{{ persona_resumen.notas_rapidas }}</p>
+    {% endif %}
     <dl class="archivo-vistazo">
       <div><dt>Hablamos hace</dt><dd>{{ persona_resumen.ultima_fecha|cuanto }}</dd></div>
       <div><dt>Relaciones</dt><dd>{{ persona_resumen.relaciones }}</dd></div>
     </dl>
-    {% if persona_resumen.notas_rapidas %}
-    <p class="archivo-nota">{{ persona_resumen.notas_rapidas }}</p>
-    {% endif %}
     <div class="archivo-en-marcha">
       <section>
         <header><span>QUEDA PENDIENTE</span><span>{{ persona_resumen.pendientes }}</span></header>

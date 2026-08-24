@@ -90,7 +90,7 @@
         id: p.id,
         nombre: p.nombre,
         nombreCompleto: p.nombre_completo || p.nombre,
-        color: p.color || null,
+        descripcion: p.notas_rapidas || '',
         circulo: p.circulo || null,
         circuloId: p.circulo_id == null ? null : String(p.circulo_id),
         notas: p.notas || 0,
@@ -467,8 +467,14 @@
   }
 
   // Radio en pantalla del anillo de allegados alrededor de la persona elegida.
+  // En móvil el anillo se dibuja en píxeles de pantalla, así que un corro grande
+  // (13 personas → 235px de radio) se salía por los dos lados de una pantalla
+  // estrecha. Se acota el tope al ancho disponible dejando aire para los nombres.
   function radioAnillo(cuantos) {
-    return Math.max(120, Math.min(235, 96 + cuantos * 15));
+    var estrecho = A < 720;
+    var tope = estrecho ? Math.max(92, A * 0.30) : 235;
+    var suelo = estrecho ? 84 : 120;
+    return Math.max(suelo, Math.min(tope, 96 + cuantos * 15));
   }
 
   // El movimiento vivo de la red. Dos cosas a la vez, ninguna toca las
@@ -879,10 +885,57 @@
     return nombre + ': ' + cuantas + (cuantas === 1 ? ' persona' : ' personas');
   }
 
+  // Proyecta toda la red a una distancia de cámara dada, en la orientación de
+  // reposo y centrada, y devuelve el recuadro que ocupa en pantalla. No deja
+  // rastro: guarda y restaura cámara y rotación. Sirve para medir si encaja.
+  function proyectarBounds(cz) {
+    var s = {
+      camZ: camZ, camX: camX, camY: camY, camP: camProfundidad,
+      vX: vistaX, vY: vistaY, rx: rotX, ry: rotY, q: quieto
+    };
+    var o = orientacionMasClara();
+    camZ = cz; camX = 0; camY = 0; camProfundidad = 0;
+    vistaX = 0; vistaY = 0; rotX = o.x; rotY = o.y; quieto = true;
+    proyectar();
+    var xs = [], ys = [];
+    centros.concat(nodosVisibles).forEach(function (n) { xs.push(n.px); ys.push(n.py); });
+    camZ = s.camZ; camX = s.camX; camY = s.camY; camProfundidad = s.camP;
+    vistaX = s.vX; vistaY = s.vY; rotX = s.rx; rotY = s.ry; quieto = s.q;
+    return {
+      minX: Math.min.apply(null, xs), maxX: Math.max.apply(null, xs),
+      minY: Math.min.apply(null, ys), maxY: Math.max.apply(null, ys)
+    };
+  }
+
+  // La distancia de cámara más pequeña que mete TODA la red en pantalla, con
+  // aire para los nombres (centrados bajo cada punto). Como depende de cuánta
+  // gente hay, no vale un número fijo: se busca. Así encaja igual con 12 que
+  // con 80 personas, y «alejar al máximo» siempre puede llegar a verla entera.
+  function camaraQueEncaja() {
+    var margenX = 46, margenTop = 22, margenAbajo = 40;
+    var lo = 1200, hi = 24000;
+    for (var i = 0; i < 24; i++) {
+      var cz = (lo + hi) / 2;
+      var b = proyectarBounds(cz);
+      var cabe = b.minX >= margenX && b.maxX <= A - margenX &&
+        b.minY >= margenTop && b.maxY <= ALTO - margenAbajo;
+      if (cabe) hi = cz; else lo = cz;
+    }
+    return Math.round(hi);
+  }
+
+  // Cuánto se puede alejar. En móvil, al menos lo que haga falta para ver la red
+  // entera (antes el tope 4500 se quedaba corto y no entraba ni al máximo).
+  function topeZoom() {
+    return A < 720 ? Math.max(4500, camaraQueEncaja() * 1.8) : 4500;
+  }
+
   function camaraParaEstado() {
     if (fijado) return A < 720 ? 1900 : 1450;
     if (circuloFijado) return A < 720 ? 2100 : 1650;
-    if (A < 720) return 3400;
+    // La vista general se salía por los lados en móvil. En vez de un número
+    // fijo, se calcula la distancia que encaja con estos datos y esta pantalla.
+    if (A < 720) return camaraQueEncaja();
     return ALTO < 820 ? 2900 : 2500;
   }
 
@@ -927,7 +980,7 @@
   }
 
   function cambiarZoom(cantidad) {
-    camZObjetivo = Math.max(500, Math.min(4500, camZObjetivo + cantidad));
+    camZObjetivo = Math.max(500, Math.min(topeZoom(), camZObjetivo + cantidad));
   }
 
   function moverVista(dx, dy) {
@@ -1202,7 +1255,7 @@
         medirToques();
         if (antesD > 0 && pellizco > 0) {
           camZObjetivo = Math.max(
-            500, Math.min(4500, camZObjetivo * (antesD / pellizco))
+            500, Math.min(topeZoom(), camZObjetivo * (antesD / pellizco))
           );
         }
         moverVista(centroX - antesX, centroY - antesY);
@@ -1402,6 +1455,8 @@
         ? '<p class="ficha-mini-nombre-completo">' + esc(n.nombreCompleto) + '</p>'
         : '') +
       (n.circulo ? '<span class="donde">' + esc(n.circulo) + '</span>' : '') +
+      (n.descripcion ? '<p class="ficha-mini-descripcion">' +
+        esc(n.descripcion) + '</p>' : '') +
       '</div></div></header>' +
       '<dl class="ficha-mini-vistazo"><div><dt>HABLAMOS HACE</dt><dd>' +
         esc(n.hablamos) + '</dd></div><div><dt>QUEDADAS</dt><dd>' +
@@ -1420,4 +1475,5 @@
     panel.classList.add('visible');
     panel.setAttribute('aria-hidden', 'false');
   }
+
 })();

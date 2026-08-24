@@ -29,6 +29,7 @@ Busca el ancla con `grep`; el número es orientativo.
 | Cambiar el esquema o migrar la base | `poner_al_dia()` · 116 | `def poner_al_dia` |
 | Añadir un círculo de fábrica | 39 | `CIRCULOS_DE_FABRICA` |
 | Cambiar el máximo de accesos de la portada | 45 | `MAX_CIRCULOS_PORTADA` |
+| Cambiar el límite de la descripción breve | 47 | `MAX_DESCRIPCION_PERSONA` |
 | Tocar cómo se dice una fecha en pantalla | 194–326 | `def cuanto`, `def hace`, `def fecha_natural` |
 | Cambiar quién entra sin llave | `puerta()` · 352 | `async def puerta` |
 | Tocar el nombre visible (apodo manda) | 416 | `NOMBRE_VISIBLE_SQL` |
@@ -63,7 +64,7 @@ en `estatico/`, pero se sirven desde la raíz con su tipo MIME propio.
 `/persona/{id}/borrar` · `/persona/{id}/hecho` · `/persona/{id}/hilo` ·
 `/persona/{id}/relacion` · `/persona/{id}/relaciones` · `/hecho/{id}` ·
 `/hecho/{id}/borrar` ·
-`/hilo/{id}/cerrar` · `/hilo/{id}/reabrir` · `/hilo/{id}/borrar` ·
+`/hilo/{id}/editar` · `/hilo/{id}/cerrar` · `/hilo/{id}/reabrir` · `/hilo/{id}/borrar` ·
 `/relacion/editar` · `/relacion/borrar` · `/nota` · `/nota/persona/{id}` · `/nota/{id}` ·
 `/nota/{id}/borrar` · `/audio` · `/audio/{id}/borrar` ·
 `/audio/{id}/volver-a-analizar` · `/audio/{id}/enviar-a-qwen` ·
@@ -85,6 +86,8 @@ modifica el `circulo_id` de una persona para colocarla en la red.
 
 ## Notas y captura manual
 
+- `persona.notas_rapidas` es la descripción breve: hasta cien caracteres. El
+  alta y la edición la recortan también en servidor; Notas sólo la enseña.
 - `nota.resumen` guarda la versión corta de una quedada. Personas y Red la
   usan en sus fichas compactas; `/persona/{id}` conserva `nota.texto` completo.
   Si una fila antigua no tiene resumen, las vistas compactas usan su texto.

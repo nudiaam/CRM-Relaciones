@@ -33,6 +33,8 @@ quitó porque abría el teclado solo en el móvil.
 En Notas, tanto los bloques manuales como los que rellena Qwen nacen abiertos.
 El selector emite `persona-limpiada` cuando se borra o modifica una elección;
 la captura retira entonces sólo el formulario de esa persona, sin tocar su ficha.
+Al emitir `persona-elegida` lleva también `data-descripcion`; el bloque manual
+la copia a un párrafo de sólo lectura dentro de la identidad.
 
 ### El aviso antes de borrar
 
@@ -159,12 +161,25 @@ en cambio todos los cuadrados de círculo.
 La **ficha resumida** se pliega como *Explorar la red*: `#grafo-ficha-plegar` es
 el rótulo-botón con su signo +/−, alterna `#ficha[data-plegado]` y conserva el
 estado entre selecciones; la × (`#grafo-cerrar`) sigue cerrándola del todo.
+`verFicha()` coloca la descripción breve bajo el círculo, antes del resumen de
+contacto y sin añadir un bloque nuevo.
 
 `animarFisica()` interpola el realce de la persona señalada y aparta suavemente
 los puntos próximos para despejar el clic, sin muelles. Señalar un cuadrado fija
 el contraste de todas sus personas sin cambiar el encuadre. Pulsar un cuadrado o
 una persona actualiza objetivos de cámara; `actualizarCamara()` los alcanza poco
 a poco, por lo que acercar, alejar y retroceder no recolocan la red ni dan saltos.
+
+**Encaje en móvil.** El anillo (`anilloActivo`) se dibuja en píxeles de pantalla,
+así que `radioAnillo` acota su tope al ancho `A` cuando `A < 720` (≈`A*0.30`) para
+que un corro grande no se salga por los lados. La vista general se proyecta en el
+mundo: ahí, en móvil, `camaraParaEstado()` devuelve `camaraQueEncaja()`, que hace
+una **búsqueda binaria** de la distancia de cámara más pequeña que mete toda la
+red en pantalla con aire para los nombres (usa `proyectarBounds(cz)`, que proyecta
+sin dejar rastro). Así encaja igual con 12 que con 80 personas. `topeZoom()` sube
+en móvil el tope de alejar (antes 4500 se quedaba corto y no entraba ni al máximo)
+a `max(4500, camaraQueEncaja()*1.8)`; lo usan `cambiarZoom` y el pellizco. La
+composición 3D no cambia, sólo cuánto se ve. En escritorio todo sigue igual.
 
 ## `voz.js` (captura por voz)
 

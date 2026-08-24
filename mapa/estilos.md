@@ -74,6 +74,8 @@ porque `:root` es el `<html>` que lleva el modo.
 | Cabecera rellena | 3842 | `.bloque-cabecera {` |
 | Edición por bloque | 3929 | `data-edicion="no"` |
 | Identidad | 3946 | `.bloque-identidad {` |
+| Descripción breve | busca | `.persona-descripcion {` |
+| Identidad de Notas | busca | `.captura-persona {` |
 | De un vistazo | 4011 | `.vistazo {` |
 | Líneas de contenido | 4056 | `.lineas {` |
 | Rojo de borrar | 4104 | `.accion-eliminar:hover` |
@@ -85,6 +87,9 @@ porque `:root` es el `<html>` que lleva el modo.
 El marco `.ficha` desactiva el anclaje automático de desplazamiento del
 navegador. Al mostrar u ocultar controles dentro de un bloque, el cambio de
 altura no debe recolocar por su cuenta el punto que la persona está leyendo.
+La foto de la ficha completa y de Notas mide 96×96; la ficha rápida del
+archivador usa 104×104 y doce píxeles de relleno lateral para que incluso el
+nombre visible más largo conserve su línea completa.
 
 ## Cabeceras de sección: quién lleva caja y quién no
 

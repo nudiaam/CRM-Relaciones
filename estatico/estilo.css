@@ -521,6 +521,15 @@ button,
   gap: 24px;
 }
 
+.campo-ancho,
+.alta-descripcion {
+  grid-column: 1 / -1;
+}
+
+.descripcion-campo {
+  min-height: 88px;
+}
+
 .acciones {
   display: flex;
   flex-wrap: wrap;
@@ -840,6 +849,10 @@ details > summary::-webkit-details-marker {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.alta-descripcion {
+  max-width: 640px;
+}
+
 .alta-ayuda {
   max-width: 640px;
   margin: -8px 0 20px;
@@ -1144,8 +1157,8 @@ details > summary::-webkit-details-marker {
 }
 
 .archivo-foto-vacia {
-  font-size: 33px;
-  line-height: 40px;
+  font-size: 40px;
+  line-height: 48px;
 }
 
 .archivo-ficha-cabecera h2 {
@@ -1287,14 +1300,6 @@ details > summary::-webkit-details-marker {
 
 .ficha-resumen .valor {
   margin-top: 8px;
-}
-
-.nota-rapida {
-  max-width: 640px;
-  margin-top: 32px;
-  padding-left: 16px;
-  border-left: var(--filete);
-  font-style: italic;
 }
 
 .ficha-atencion {
@@ -2511,8 +2516,8 @@ body > .hoja:only-child {
 .archivo-ficha-foto,
 .archivo-ficha-cabecera img,
 .archivo-foto-vacia {
-  width: 96px;
-  height: 96px;
+  width: 104px;
+  height: 104px;
 }
 
 .archivo-ficha-foto {
@@ -2528,10 +2533,10 @@ body > .hoja:only-child {
 .archivo-ficha-identidad {
   display: flex;
   min-width: 0;
-  min-height: 96px;
+  min-height: 104px;
   flex-direction: column;
   justify-content: center;
-  padding: 12px 16px;
+  padding: 12px;
 }
 
 .archivo-ficha-cabecera h2 {
@@ -4140,8 +4145,13 @@ html[data-modo="noche"] .bloque-cabecera .bloque-editar:hover {
 
 .identidad .foto-perfil {
   flex: none;
-  width: 80px;
-  height: 80px;
+  width: 96px;
+  height: 96px;
+}
+
+.identidad .foto-vacia {
+  font-size: 40px;
+  line-height: 48px;
 }
 
 .identidad-texto {
@@ -4164,6 +4174,21 @@ html[data-modo="noche"] .bloque-cabecera .bloque-editar:hover {
   line-height: 16px;
   letter-spacing: .12em;
   text-transform: uppercase;
+}
+
+.persona-descripcion {
+  max-width: 640px;
+  margin-top: 12px;
+  font-family: var(--lectura);
+  font-size: 16px;
+  line-height: 22px;
+}
+
+.ficha-mini-descripcion {
+  margin-top: 12px;
+  font-family: var(--lectura);
+  font-size: 16px;
+  line-height: 22px;
 }
 
 .identidad-acciones {
@@ -4218,15 +4243,6 @@ html[data-modo="noche"] .bloque-cabecera .bloque-editar:hover {
   text-align: right;
 }
 
-.bloque-cuerpo > .nota-rapida {
-  margin: 16px 0 0;
-  padding-top: 16px;
-  border-top: var(--filete-suave);
-  font-family: var(--lectura);
-  font-size: 16px;
-  line-height: 24px;
-}
-
 /* Líneas de contenido: el texto entero, nunca truncado. */
 
 .lineas {
@@ -4237,9 +4253,30 @@ html[data-modo="noche"] .bloque-cabecera .bloque-editar:hover {
 
 .linea {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 16px;
+  gap: 8px 16px;
   padding: 8px 0;
+}
+
+/* En edición, el texto en reposo cede su sitio a un campo con su misma frase.
+   Sólo se oculta cuando el bloque está editándose; sin JavaScript se ven los
+   dos, como el resto de la ficha. */
+[data-bloque][data-edicion="si"] [data-solo-lectura] {
+  display: none;
+}
+
+.linea-editar {
+  display: flex;
+  flex: 1 1 240px;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+}
+
+.linea-editar input[type="text"] {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .linea + .linea {
@@ -4554,9 +4591,15 @@ html[data-modo="noche"] .accion-eliminar:hover {
     width: 264px;
   }
 
-  .grafo-ficha {
-    top: calc(var(--barra) + env(safe-area-inset-top));
-    max-height: calc(100vh - var(--barra) - env(safe-area-inset-top) - 32px);
+  /* «Explorar la red» arriba a la izquierda. Va en este bloque, el último para
+     `.grafo-mandos`, para ganar a la regla base de más arriba que reponía
+     `top: barra + 24` y dejaba los mandos por debajo de donde arranca la ficha
+     (se solapaban). La ficha, por su parte, se coloca en su propia regla, más
+     abajo (busca «ficha flotante»). */
+  .grafo-mandos {
+    top: calc(var(--barra) + env(safe-area-inset-top) + 8px);
+    left: calc(8px + env(safe-area-inset-left));
+    width: 264px;
   }
 }
 
@@ -5002,15 +5045,20 @@ html[data-modo="noche"] .confirmar::backdrop {
   }
 
   /* La ficha es una ventana flotante que baja de la barra con márgenes a los
-     lados y arriba, como Explorar la red. No llega a los bordes ni tapa la
-     barra de estado: la altura se acota para dejarla libre abajo. */
+     lados. Va DEBAJO de «Explorar la red», no encima: los mandos plegados
+     ocupan barra + 8 + su barra de título (~48px) ≈ barra + 56, así que la ficha
+     arranca en barra + 64. Con menos z-index que los mandos, si estos se
+     despliegan quedan por encima en vez de taparlos la ficha. No llega a los
+     bordes ni tapa la barra de estado: la altura se acota para dejarla libre. */
   .grafo-ficha {
-    top: calc(var(--barra) + env(safe-area-inset-top) + 16px);
+    top: calc(var(--barra) + env(safe-area-inset-top) + 64px);
     right: calc(16px + env(safe-area-inset-right));
     bottom: auto;
     left: calc(16px + env(safe-area-inset-left));
     width: auto;
-    max-height: calc(100vh - var(--barra) - env(safe-area-inset-top) - 96px);
+    z-index: 9;
+    max-height: calc(100vh - var(--barra) - env(safe-area-inset-top)
+      - env(safe-area-inset-bottom) - 112px);
     border: var(--filete);
   }
 }
@@ -5637,27 +5685,6 @@ html[data-modo="noche"] .confirmar::backdrop {
   text-align: left;
 }
 
-.captura-identidad .identidad {
-  position: relative;
-  padding-right: 176px;
-}
-
-.captura-persona-quitar {
-  position: absolute;
-  top: 50%;
-  right: 0;
-  transform: translateY(-50%);
-}
-
-.captura-descartar-ayuda {
-  max-width: 640px;
-  margin: 12px 0 0;
-  color: var(--secundario);
-  font-family: var(--mono);
-  font-size: 10px;
-  line-height: 16px;
-}
-
 .captura-fila {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -5778,19 +5805,6 @@ html[data-modo="noche"] .confirmar::backdrop {
   .audio-volver-form {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .captura-identidad .identidad {
-    flex-wrap: wrap;
-    padding-right: 0;
-  }
-
-  .captura-persona-quitar {
-    position: static;
-    flex: 1 0 100%;
-    width: 100%;
-    margin-top: 16px;
-    transform: none;
   }
 
   .captura-fila {

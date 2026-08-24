@@ -87,6 +87,9 @@ Lo que no es evidente:
 - **apodo** es «cómo le llamas». Si tiene contenido, es el nombre principal en
   listas, búsquedas, selecciones y red. El nombre completo sólo reaparece como
   subtítulo en la ficha completa y en la ficha rápida de Personas.
+- **notas_rapidas** es la descripción breve de la persona: una impresión general
+  de hasta cien caracteres. Se ve en las fichas y en Notas, donde es de sólo
+  lectura.
 - Una **nota** puede mencionar a varias personas, por eso no cuelga de una
   persona: hay tabla intermedia. La coincidencia queda registrada en las
   fichas, pero no crea relaciones ni líneas entre todos sus asistentes.
@@ -150,8 +153,8 @@ El lenguaje visual toma referencias de interfaces gráficas tempranas, software
 editorial y juegos de un bit. La estructura debe sentirse precisa, modular y
 deliberada, nunca decorada por nostalgia sin función.
 
-- Sólo papel `#f4efe1` y tinta `#14120f`; noche invierte ambos. El color guardado
-  de una persona sigue siendo un dato editable, pero no rompe la interfaz 1-bit.
+- Sólo papel `#f4efe1` y tinta `#14120f`; noche invierte ambos. La columna
+  histórica `persona.color` se conserva, pero ya no se muestra ni edita.
   **Excepciones acotadas**: `--alarma`, un rojo rebajado que aparece al señalar
   con el ratón un botón que borra y en la identidad que la voz dejó dudosa.
   En el segundo caso permanece hasta confirmar con ✓ o elegir otra persona.
@@ -1583,3 +1586,114 @@ Cuatro cambios sobre la red (`grafo.js`), atendiendo tus apuntes:
   alterna `data-plegado` si/no y el signo +/−. El aspecto fino queda a tu ojo.
   El mapa (`interaccion.md`) se actualizó; `python mapa/comprobar.py` pasa.
   Recursos: `grafo.js?v=20260818j`, `estilo.css?v=20260818j`.
+
+### 2026-08-19 — Editar el texto de pendientes, preguntas y datos
+
+- En la ficha, al entrar en edición cada línea de *Queda pendiente*, *Preguntar
+  por* y *Datos* ya no ofrece sólo cerrar, eliminar o quitar: enseña un campo con
+  su propia frase y *Guardar* para **corregir el texto en el sitio**. Antes había
+  que borrar y volver a escribir.
+- El texto de reposo lleva `data-solo-lectura` y se oculta únicamente cuando el
+  bloque está en edición (`[data-edicion="si"]`); sin JavaScript se ven el texto
+  y el campo, como el resto de la ficha.
+- Ruta nueva `POST /hilo/{id}/editar` para pendientes y preguntas. Los datos
+  reutilizan `POST /hecho/{id}`, que ya existía pero no estaba enlazado en
+  ninguna pantalla; ahora recibe `volver` para el ancla de respaldo. En los dos,
+  un texto vacío **no borra** —para eso están *Eliminar* y *Quitar*— y el texto
+  se recorta. La posición de lectura se conserva como en el resto de acciones.
+- `.linea` admite ahora salto de línea para que el campo y las acciones quepan en
+  móvil. Nada cambia en reposo.
+- Probado sobre una **copia temporal de `datos.db`** con el cliente de pruebas:
+  editar un hilo y un hecho actualiza el texto recortado y redirige a `#atencion`
+  y `#datos`; un texto vacío no borra ni cambia; la ficha renderiza con los
+  campos. La base real quedó intacta. `python mapa/comprobar.py` pasa. El mapa
+  (`backend.md`, `pantallas.md`) se actualizó en el mismo cambio.
+- Recursos: `estilo.css?v=20260819a`.
+
+### 2026-08-19 — La red encaja en el móvil (auto-ajuste) y la ficha, debajo
+
+En pantalla estrecha la red se salía por los lados en dos sitios distintos y,
+además, ni al alejar al máximo entraba entera. Cada cosa tenía su causa:
+
+- **Al enfocar un círculo o una persona**, el corro se recoloca en un anillo
+  dibujado en **píxeles de pantalla** (`radioAnillo` + `animarFisica`). Con 13
+  personas eran 235px de radio, o sea 470px de diámetro sobre una pantalla de
+  375: cortado por los dos lados. Ahora, cuando `A < 720`, el tope del radio se
+  acota al ancho (≈`A*0.30`, ~112px en un móvil) dejando aire para los nombres.
+  Medido con datos reales: la persona de mayor grado (16) y el círculo de 13
+  quedan en `[76, 299]`, con nombres holgados dentro de 375. En escritorio nada
+  cambia.
+- **La vista general** se proyecta en el mundo, no en pantalla. Un número fijo
+  no vale porque depende de cuánta gente haya, así que se **calcula**:
+  `camaraQueEncaja()` hace una búsqueda binaria de la distancia de cámara más
+  pequeña que mete toda la red con margen para los nombres (`proyectarBounds(cz)`
+  proyecta sin dejar rastro). Con los datos reales sale ~7200 y encaja en
+  `[51, 329]`; encajaría igual con 12 o con 80 personas.
+- **«Alejar al máximo» no llegaba a ver la red entera**: el tope estaba fijo en
+  4500, por debajo de lo necesario. Ahora `topeZoom()` sube en móvil a
+  `max(4500, camaraQueEncaja()*1.8)` (~13000 con estos datos); lo usan la rueda,
+  los botones y el pellizco.
+- **La ficha resumida se ponía encima de «Explorar la red».** Los mandos van
+  arriba a la izquierda; la ficha arrancaba en `barra + 16` y los tapaba. Ahora
+  arranca en `barra + 64` (por debajo de los mandos plegados, ~`barra + 56`) y
+  con menos `z-index` que ellos, así que si se despliegan quedan por encima en
+  vez de taparlos la ficha. Medido: mandos `top 64`/`bottom 106`, ficha
+  `top 120`, 14px de hueco, sin solape. La causa de fondo era una maraña de
+  reglas `.grafo-mandos`/`.grafo-ficha` de varias tandas: una regla base tardía
+  reponía el `top` de escritorio. El `top` de los mandos se fija ahora en el
+  último bloque `@media`, y el de la ficha en su regla «ficha flotante», que es
+  la última de todas.
+- **No se tocó la composición 3D ni las distancias base**: las mismas posiciones
+  para todos los tamaños. Sólo cambia, según el ancho, cuánto se ve y el radio
+  del anillo. En escritorio la red es idéntica.
+- **Cómo se verificó, sin poder capturar pantalla:** el lienzo no compone frames
+  en el navegador automatizado (se lee en negro, limitación ya conocida) y la
+  extensión de Chrome no estaba conectada. Se expuso un hook temporal dentro de
+  `grafo.js` que proyecta y devuelve los recuadros reales de nodos, corro y
+  enfoque, se midió con los datos reales (encaje general, anillo de mayor grado y
+  círculo mayor, posición de mandos y ficha) y se **retiró** al terminar. El
+  ajuste fino queda a tu ojo en el móvil.
+- El mapa (`interaccion.md`) se actualizó en el mismo cambio y
+  `python mapa/comprobar.py` pasa. Recursos: `grafo.js?v=20260819d`,
+  `estilo.css?v=20260819d`.
+
+### 2026-08-24 — Descripción breve de cada persona y retirada del color
+
+- `persona.notas_rapidas`, que estaba vacío en las 53 fichas reales, pasa a ser
+  **Descripción breve**. Se puede escribir al añadir a alguien o editar su
+  identidad y se muestra bajo nombre y círculo en la ficha completa, la ficha
+  rápida de Personas y la ficha resumida de la Red.
+- Notas también la enseña dentro de la identidad, tanto en la captura manual
+  como en los borradores de voz, pero allí es fija: no se puede modificar al
+  confirmar pendientes, preguntas, quedadas o datos.
+- El límite queda en **cien caracteres**, aplicado con `maxlength` y de nuevo en
+  el servidor. Se compararon visualmente ochenta, cien y ciento veinte: cien
+  mantiene una descripción útil y no domina la ficha móvil de la Red.
+- Se retiró *Su color* de la edición y del JSON de la Red. La columna histórica
+  se conserva y editar otros datos no altera lo que ya tuviera guardado; no hubo
+  migración ni pérdida de datos.
+- Probado sobre una copia temporal de `datos.db`: alta y edición recortan a cien,
+  el valor histórico de color permanece, las plantillas cargan y `/api/grafo`
+  entrega la descripción sin color. Revisión visual en escritorio y 375×812 de
+  ficha completa, Personas, Red, alta y Notas, sin errores de consola. La base
+  real no se modificó y los temporales se retiraron.
+- `python mapa/comprobar.py`, `py_compile`, `node --check` y `git diff --check`
+  pasan. Recursos: `estilo.css?v=20260824a`, `app.js?v=20260824a` y
+  `grafo.js?v=20260824a`.
+
+### 2026-08-24 — Identidades alineadas y fotos mayores
+
+- La ficha completa y los bloques de Notas comparten ahora foto de 96×96 y la
+  misma fila de nombre, círculo y descripción. En Notas, *Descartar borrador*
+  baja a una fila de acción equivalente a la edición de la ficha completa.
+- Se quitó la frase «Sólo retira este borrador…»; la acción ya se entiende por
+  su nombre y no necesita una segunda explicación permanente.
+- La ficha rápida del archivador crece de 96×96 a 104×104. Se probaron 112 px,
+  pero cortaban el nombre visible más largo en móvil; con 104 px y doce de
+  relleno lateral, el nombre entra completo.
+- El orden de esa ficha pasa a identidad → descripción → *Hablamos hace* y
+  *Relaciones* → resto del contenido.
+- Revisado visualmente con los datos reales copiados en escritorio y a 375×812:
+  ficha completa, captura manual, archivador, descripción y nombre más largo,
+  sin errores de consola. La base real no se modificó.
+- Recurso: `estilo.css?v=20260824b`.

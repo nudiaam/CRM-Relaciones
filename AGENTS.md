@@ -73,6 +73,9 @@ Lo que no es evidente:
 - **apodo** es «cómo le llamas». Si tiene contenido, es el nombre principal en
   listas, búsquedas, selecciones y red. El nombre completo sólo reaparece como
   subtítulo en la ficha completa y en la ficha rápida de Personas.
+- **notas_rapidas** es la descripción breve de la persona: una impresión general
+  de hasta cien caracteres. Se muestra en las fichas completa y compactas y en
+  Notas; allí es sólo informativa y no se puede cambiar.
 - Una **nota** puede mencionar a varias personas, por eso no cuelga de una
   persona: hay tabla intermedia. La coincidencia queda registrada en las
   fichas, pero no crea relaciones ni líneas entre todos sus asistentes.
@@ -156,8 +159,8 @@ deliberada, nunca decorada por nostalgia sin función.
   forma literal: usa carbón cálido `#23241f`, crema apagada `#ddd6c6`, una capa
   `#2b2c27`, selecciones `#3a3b35` y filetes `#706d64`. Un gris secundario se
   reserva para metadatos como el círculo, los recuentos y el papel de una
-  relación. Así se conserva la interfaz 1-bit sin grandes fogonazos claros. El
-  color guardado de una persona sigue siendo un dato editable.
+  relación. Así se conserva la interfaz 1-bit sin grandes fogonazos claros. La
+  columna histórica `persona.color` se conserva, pero ya no se muestra ni edita.
 - Departure Mono se incluye localmente en `estatico/tipos/` bajo SIL OFL. Se usa
   a 11px para navegación, controles y rótulos. El texto largo usa serif a 16px.
 - Títulos personales a 33px. Cuerpo a 16px. Interfaz a 11px.
@@ -204,10 +207,15 @@ Detalles intencionados:
 - Las fichas compactas no repiten «Ficha rápida» ni «Persona seleccionada»: la
   identidad ya explica el contexto. Sus rótulos de sección van a 11px, con un
   pequeño cuadrado, y el contenido vuelve a serif con más tamaño y separación.
+- En la ficha rápida de Personas, la descripción breve va inmediatamente bajo
+  la identidad, antes de *Hablamos hace* y *Relaciones*.
 - En las relaciones compactas, nombre y papel usan Departure Mono; el papel
   conserva el gris secundario y un punto menos para leerse como metadato.
 - En la ficha completa, `PERSONA / 0000` queda encima de la fila de identidad.
   Foto, nombre y círculo forman debajo un único bloque centrado verticalmente.
+  La foto mide 96×96 y Notas repite exactamente esa alineación; *Descartar
+  borrador* ocupa una fila de acción debajo, sin una aclaración adicional. La
+  ficha rápida de Personas usa 104×104.
 
 ## La red (`estatico/grafo.js`)
 

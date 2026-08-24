@@ -44,6 +44,7 @@ RUTA_DB = BASE_DATOS / "datos.db"
 CIRCULOS_DE_FABRICA = ("Amigos", "Familia", "Trabajo", "Barrio")
 MAX_CIRCULOS_PORTADA = 7  # «Sin círculo» cuenta como uno de los accesos
 AJUSTE_SIN_CIRCULO_PORTADA = "sin_circulo_en_portada"
+MAX_DESCRIPCION_PERSONA = 100
 
 # Lo que queda pendiente lo tengo que hacer yo; por lo otro tengo que preguntar.
 TIPOS = ("pendiente", "preguntar")
@@ -484,6 +485,7 @@ app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/estatico", StaticFiles(directory=BASE / "estatico"), name="estatico")
 
 plantillas = Jinja2Templates(directory=BASE / "plantillas")
+plantillas.env.globals["max_descripcion_persona"] = MAX_DESCRIPCION_PERSONA
 plantillas.env.filters["hace"] = hace
 plantillas.env.filters["cuanto"] = cuanto
 plantillas.env.filters["fecha"] = fecha_natural
@@ -709,6 +711,20 @@ def reabrir_hilo(hilo_id: int, volver: str = Form("/")):
     with con:
         con.execute("UPDATE hilo SET cerrado_el = NULL WHERE id = ?", (hilo_id,))
     con.close()
+    return vuelve(volver)
+
+
+@app.post("/hilo/{hilo_id}/editar")
+def editar_hilo(hilo_id: int, texto: str = Form(""), volver: str = Form("/")):
+    """Cambia el texto de un pendiente o una pregunta ya apuntados. Un texto
+    vacío no borra: se ignora y se vuelve tal cual, que para borrar está su
+    propia acción."""
+    texto = texto.strip()
+    if texto:
+        con = conexion()
+        with con:
+            con.execute("UPDATE hilo SET texto = ? WHERE id = ?", (texto, hilo_id))
+        con.close()
     return vuelve(volver)
 
 
@@ -968,7 +984,7 @@ def lista_personas(
 @app.post("/persona")
 def crear_persona(
     nombre: str = Form(""), apodo: str = Form(""),
-    circulo_id: str = Form(""),
+    circulo_id: str = Form(""), notas_rapidas: str = Form(""),
     otras: list[str] = Form(default=[]),
     etiquetas: list[str] = Form(default=[]),
     inversas: list[str] = Form(default=[]),
@@ -988,9 +1004,11 @@ def crear_persona(
         circulo_elegido = None
     with con:
         cur = con.execute(
-            "INSERT INTO persona (nombre, apodo, circulo_id, creada) "
-            "VALUES (?, ?, ?, ?)",
-            (nombre, apodo.strip(), circulo_elegido, ahora_iso()),
+            "INSERT INTO persona "
+            "(nombre, apodo, circulo_id, notas_rapidas, creada) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (nombre, apodo.strip(), circulo_elegido,
+             notas_rapidas.strip()[:MAX_DESCRIPCION_PERSONA], ahora_iso()),
         )
         persona_id = cur.lastrowid
         enlazadas = set()
@@ -1355,7 +1373,7 @@ async def cambiar_foto(
 def editar_persona(
     persona_id: int,
     nombre: str = Form(""), apodo: str = Form(""), circulo_id: str = Form(""),
-    color: str = Form(""), cumple: str = Form(""), notas_rapidas: str = Form(""),
+    cumple: str = Form(""), notas_rapidas: str = Form(""),
 ):
     nombre = nombre.strip()
     if nombre:
@@ -1363,9 +1381,10 @@ def editar_persona(
         with con:
             con.execute(
                 "UPDATE persona SET nombre = ?, apodo = ?, circulo_id = ?, "
-                "color = ?, cumple = ?, notas_rapidas = ? WHERE id = ?",
+                "cumple = ?, notas_rapidas = ? WHERE id = ?",
                 (nombre, apodo.strip(), int(circulo_id) if circulo_id.isdigit() else None,
-                 color.strip(), cumple_iso(cumple), notas_rapidas.strip(), persona_id),
+                 cumple_iso(cumple),
+                 notas_rapidas.strip()[:MAX_DESCRIPCION_PERSONA], persona_id),
             )
         con.close()
     return RedirectResponse(f"/persona/{persona_id}", status_code=303)
@@ -1395,21 +1414,23 @@ def crear_hecho(persona_id: int, texto: str = Form("")):
 
 
 @app.post("/hecho/{hecho_id}")
-def editar_hecho(hecho_id: int, texto: str = Form("")):
-    """El formulario de un hecho lleva un solo campo y ningún botón: Enter basta.
-    Por eso no recibe 'volver' y la vuelta se deduce del propio hecho."""
+def editar_hecho(hecho_id: int, texto: str = Form(""), volver: str = Form("")):
+    """Cambia el texto de un dato ya apuntado. Un texto vacío no borra: para
+    quitar un dato está su propia acción. 'volver' da el ancla de respaldo sin
+    JavaScript; si no llega, se deduce del propio hecho."""
+    texto = texto.strip()
     con = conexion()
     fila = con.execute(
         "SELECT persona_id FROM hecho WHERE id = ?", (hecho_id,)
     ).fetchone()
     with con:
-        if texto.strip():
+        if texto:
             con.execute(
-                "UPDATE hecho SET texto = ? WHERE id = ?", (texto.strip(), hecho_id)
+                "UPDATE hecho SET texto = ? WHERE id = ?", (texto, hecho_id)
             )
-        else:
-            con.execute("DELETE FROM hecho WHERE id = ?", (hecho_id,))
     con.close()
+    if volver:
+        return vuelve(volver)
     if fila is None:
         return RedirectResponse("/personas", status_code=303)
     return RedirectResponse(f"/persona/{fila['persona_id']}", status_code=303)
@@ -1617,7 +1638,7 @@ def audio_para_pantalla(con, audio_id):
     except (TypeError, json.JSONDecodeError):
         borrador = {}
     personas_db = [dict(p) for p in con.execute(
-        "SELECT p.id, p.nombre, p.apodo, "
+        "SELECT p.id, p.nombre, p.apodo, p.notas_rapidas, "
         f"{NOMBRE_VISIBLE_SQL} AS nombre_visible, c.nombre AS circulo "
         "FROM persona p LEFT JOIN circulo c ON c.id = p.circulo_id "
         "ORDER BY nombre_visible COLLATE NOCASE, p.id"
@@ -3251,7 +3272,7 @@ def api_grafo():
         "SELECT p.id, "
         f"       {NOMBRE_VISIBLE_SQL} AS nombre,"
         "       p.nombre AS nombre_completo, p.apodo,"
-        "       p.color, p.circulo_id AS circulo_id,"
+        "       p.notas_rapidas, p.circulo_id AS circulo_id,"
         "       CASE WHEN p.foto IS NOT NULL AND p.foto <> '' THEN 1 ELSE 0 END"
         "         AS foto,"
         "       c.nombre AS circulo,"

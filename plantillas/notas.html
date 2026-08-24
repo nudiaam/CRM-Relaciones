@@ -124,7 +124,8 @@
       <div class="selector-resultados captura-resultados" role="listbox" hidden>
         {% for p in personas %}
         <button type="button" role="option" data-id="{{ p.id }}"
-                data-circulo="{{ p.circulo or '' }}" aria-selected="false">
+                data-circulo="{{ p.circulo or '' }}"
+                data-descripcion="{{ p.notas_rapidas or '' }}" aria-selected="false">
           <span>{{ p.nombre_visible }}</span>
           {% if p.circulo %}<small>{{ p.circulo }}</small>{% endif %}
         </button>
@@ -154,11 +155,13 @@
         <div class="identidad-texto">
           <h2 class="titulo" data-persona-nombre></h2>
           <span class="donde" data-persona-circulo></span>
+          <p class="persona-descripcion" data-persona-descripcion hidden></p>
         </div>
-        <button class="discreto accion-eliminar captura-persona-quitar" type="button"
+      </div>
+      <div class="identidad-acciones">
+        <button class="boton accion-eliminar captura-persona-quitar" type="button"
                 data-captura-descartar>Descartar borrador</button>
       </div>
-      <p class="captura-descartar-ayuda">Sólo retira este borrador. La persona y su ficha no cambian.</p>
     </section>
 
     <section class="bloque" data-captura-repetible="pendientes">

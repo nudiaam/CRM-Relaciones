@@ -29,10 +29,15 @@
 
 {% macro hilo_linea(h, volver) %}
 <li class="linea">
-  <span class="linea-texto">
+  <span class="linea-texto" data-solo-lectura>
     {{ h.texto }}
     <span class="linea-dato">Desde {{ h.abierto_desde|hace }}</span>
   </span>
+  <form class="linea-editar" method="post" action="/hilo/{{ h.id }}/editar" data-solo-edicion>
+    <input type="hidden" name="volver" value="{{ volver }}">
+    <input type="text" name="texto" value="{{ h.texto }}" autocomplete="off" required aria-label="Cambiar el texto">
+    <button class="boton-solido" type="submit">Guardar</button>
+  </form>
   <span class="linea-acciones" data-solo-edicion>
     <form method="post" action="/hilo/{{ h.id }}/cerrar">
       <input type="hidden" name="volver" value="{{ volver }}">
@@ -69,6 +74,7 @@
         <h1 class="titulo">{{ nombre_visible }}</h1>
         {% if p.apodo %}<p class="nombre-completo">{{ p.nombre }}</p>{% endif %}
         {% if p.circulo %}<span class="donde">{{ p.circulo }}</span>{% endif %}
+        {% if p.notas_rapidas %}<p class="persona-descripcion">{{ p.notas_rapidas }}</p>{% endif %}
       </div>
     </div>
     <div class="identidad-acciones">
@@ -111,9 +117,8 @@
               </div>
             </fieldset>
           </div>
-          <div><label for="color">Su color</label><input id="color" type="text" name="color" value="{{ p.color or '' }}" placeholder="#C2452D"></div>
           <div><label for="cumple">Cumple</label><input id="cumple" type="text" name="cumple" value="{{ p.cumple or '' }}" placeholder="25/07 o 25/07/1980"></div>
-          <div><label for="rapidas">De un vistazo</label><input id="rapidas" type="text" name="notas_rapidas" value="{{ p.notas_rapidas or '' }}"></div>
+          <div class="campo-ancho"><label for="descripcion">Descripción breve</label><textarea class="descripcion-campo" id="descripcion" name="notas_rapidas" maxlength="{{ max_descripcion_persona }}" rows="3">{{ p.notas_rapidas or '' }}</textarea></div>
         </div>
         <button class="boton-solido" type="submit">Guardar cambios</button>
       </form>
@@ -141,7 +146,6 @@
         </div>
         {% endif %}
       </dl>
-      {% if p.notas_rapidas %}<p class="nota-rapida">{{ p.notas_rapidas }}</p>{% endif %}
     </div>
   </section>
 
@@ -234,7 +238,12 @@
       <ul class="lineas">
         {% for h in hechos %}
         <li class="linea">
-          <span class="linea-texto">{{ h.texto }}</span>
+          <span class="linea-texto" data-solo-lectura>{{ h.texto }}</span>
+          <form class="linea-editar" method="post" action="/hecho/{{ h.id }}" data-solo-edicion>
+            <input type="hidden" name="volver" value="{{ volver }}#datos">
+            <input type="text" name="texto" value="{{ h.texto }}" autocomplete="off" required aria-label="Cambiar el dato">
+            <button class="boton-solido" type="submit">Guardar</button>
+          </form>
           <span class="linea-acciones" data-solo-edicion>
             <form method="post" action="/hecho/{{ h.id }}/borrar">
               <button class="discreto accion-eliminar" type="submit">Quitar</button>

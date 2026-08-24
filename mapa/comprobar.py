@@ -19,7 +19,7 @@ ANCLAS = {
         'ESQUEMA = """', "def poner_al_dia", "def cuanto", "async def puerta",
         "NOMBRE_VISIBLE_SQL", "ORDENES = {", "PERSONAS_POR_PAGINA",
         "QUEDADAS_POR_PAGINA", "FALLOS_FOTO = {", "async def cambiar_foto",
-        "TABLAS_EXPORTABLES", "CIRCULOS_DE_FABRICA",
+        "TABLAS_EXPORTABLES", "CIRCULOS_DE_FABRICA", "MAX_DESCRIPCION_PERSONA",
     ],
     "main.py": [
         "PUERTO = 9765", "def comprobar_puerto", "def servidor",
@@ -28,6 +28,7 @@ ANCLAS = {
     "estatico/estilo.css": [
         ".ficha {", ".bloque-cabecera {", 'data-edicion="no"',
         ".bloque-identidad {", ".vistazo {", ".lineas {",
+        ".persona-descripcion {",
         ".accion-eliminar:hover", ".opciones {", ".fecha-atajos {",
         "--inverso-fondo", "--alarma",
     ],

@@ -42,8 +42,15 @@ editar, su botón *Editar*.
 
 ### Reglas de la ficha
 
+- La descripción breve vive bajo el nombre y el círculo, dentro de la identidad.
+  Se edita en un `textarea` corto y no reaparece dentro de *De un vistazo*.
 - En reposo, **ni un botón dentro del contenido**. Todo lo que escribe datos
   lleva `data-solo-edicion`.
+- En edición, cada línea de *Queda pendiente*, *Preguntar por* y *Datos* cambia
+  su texto en el sitio: un campo `.linea-editar` con la misma frase y *Guardar*,
+  junto a *Ya está* / *Eliminar* / *Quitar*. El texto de reposo lleva
+  `data-solo-lectura` y se oculta sólo con `[data-edicion="si"]`. Los hilos van a
+  `/hilo/{id}/editar` y los datos a `/hecho/{id}`; vacío no borra.
 - La navegación (páginas, enlaces a otra persona, *Sigue*) **no** lleva
   `data-solo-edicion`: no es edición.
 - Los vacíos son una línea de serif en cursiva, no un panel.
@@ -53,6 +60,9 @@ editar, su botón *Editar*.
 Cabecera, bloque *Añadir persona* y el archivador de tres columnas: carpetas ·
 lista · ficha rápida. El archivador se recarga por trozos desde `app.js`
 bloque 10.
+
+El paso 01 permite escribir la descripción breve; la ficha rápida la enseña
+inmediatamente bajo la identidad y antes del resumen de contacto.
 
 El paso 02 del alta tiene **dos maneras** de enlazar, y se pueden usar a la vez:
 
@@ -72,6 +82,7 @@ composición estable; `.grafo-pie-red` contiene únicamente *Cómo moverte*. El
 lienzo dibuja los círculos activos elegidos en Ajustes y deja fuera sus cuadrados
 desactivados. *Ver todos* enlaza directamente con `#circulos-portada` en Ajustes.
 *Yo* es la excepción: Nuria ocupa el origen y ese cuadrado no se pinta.
+La ficha flotante incluye la descripción breve dentro de la identidad.
 
 ## `ajustes.html`
 
@@ -101,9 +112,12 @@ mismas `.bloque-cabecera` y `.bloque-cuerpo` de la ficha completa. Pendientes,
 preguntas y datos son repetibles; la quedada es única y lleva día, resumen y
 texto completo, además de *Por dónde*. Los cuatro bloques empiezan desplegados
 y conservan su control individual de plegado. *Descartar borrador* sólo retira
-ese formulario y lo explica junto al botón; nunca borra la persona ni
-modifica su ficha. El análisis automático rellena exactamente esos mismos campos.
+ese formulario; nunca borra la persona ni modifica su ficha. Su acción ocupa la
+misma fila bajo la identidad que los controles de la ficha completa. El análisis
+automático rellena exactamente esos mismos campos.
 No se crea gente desde aquí.
+La descripción breve aparece en la identidad de los bloques manuales y de voz,
+pero es informativa: no se puede cambiar desde Notas.
 
 En el borrador automático, *Preguntar por* contiene asuntos que completan el
 rótulo («El viaje a Huelva»), no preguntas completas. El resumen se redacta

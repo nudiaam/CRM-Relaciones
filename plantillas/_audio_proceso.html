@@ -60,6 +60,9 @@
               <h3 class="titulo">{{ bloque.persona.nombre_visible }}</h3>
               {% if bloque.persona.circulo %}<span class="donde">{{ bloque.persona.circulo }}</span>{% endif %}
               {% endif %}
+              {% if bloque.persona and bloque.persona.notas_rapidas %}
+              <p class="persona-descripcion">{{ bloque.persona.notas_rapidas }}</p>
+              {% endif %}
             </div>
             {% if bloque.persona_dudosa and bloque.persona %}
             <form method="post" action="/audio/{{ a.id }}/persona/{{ bloque.clave }}/resolver"

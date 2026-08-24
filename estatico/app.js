@@ -446,7 +446,8 @@
             detail: {
               id: opcion.dataset.id,
               nombre: nombre,
-              circulo: opcion.dataset.circulo || ''
+              circulo: opcion.dataset.circulo || '',
+              descripcion: opcion.dataset.descripcion || ''
             }
           }));
           var fila = selector.closest('[data-relacion-alta]');
@@ -1154,6 +1155,9 @@
         var circulo = formulario.querySelector('[data-persona-circulo]');
         circulo.textContent = detalle.circulo;
         circulo.hidden = !detalle.circulo;
+        var descripcion = formulario.querySelector('[data-persona-descripcion]');
+        descripcion.textContent = detalle.descripcion;
+        descripcion.hidden = !detalle.descripcion;
         formulario.querySelector('[data-captura-audio]').value = audioActivo.id;
         iniciarPlegablesCaptura(formulario, detalle.id);
         formulario.querySelectorAll('[data-captura-repetible]').forEach(iniciarRepetible);
