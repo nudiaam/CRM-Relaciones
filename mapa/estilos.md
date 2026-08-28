@@ -149,6 +149,8 @@ se retoma, hay que colorear **también esos dos hijos**, no sólo el contenedor.
   el mismo texto mono de la interfaz; no introduce una barra ni una animación.
 - La **ficha flotante de la red** (`.grafo-ficha`) es una ventana con barra de
   título (`.grafo-ficha-titulo`, reutiliza `.ventana-titulo`) que dice «Ficha
-  resumida» y lleva la × dentro. En móvil flota con márgenes de 16px a los lados
-  y arriba, no de borde a borde; la altura se acota para no tapar la barra de
-  estado. La barra de título es `sticky` mientras el contenido se desplaza.
+  resumida» y lleva la × dentro. Sus dos botones conservan el fondo transparente
+  y el color heredado de la barra también en modo noche, incluida la ficha
+  plegada. En móvil flota con márgenes de 16px a los lados y arriba, no de borde
+  a borde; la altura se acota para no tapar la barra de estado. La barra de
+  título es `sticky` mientras el contenido se desplaza.

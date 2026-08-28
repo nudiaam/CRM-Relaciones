@@ -1976,8 +1976,8 @@ details > summary::-webkit-details-marker {
   justify-content: space-between;
   min-height: 32px;
   padding: 8px;
-  color: var(--papel);
-  background: var(--tinta);
+  color: var(--inverso-texto);
+  background: var(--inverso-fondo);
   font-family: var(--mono);
   font-size: 11px;
   line-height: 16px;
@@ -2127,7 +2127,7 @@ details > summary::-webkit-details-marker {
 /* El rótulo es un botón que pliega la ficha, como «Explorar la red»: ocupa el
    ancho, hereda el relleno de tinta de la barra y lleva su signo +/− a la
    derecha, antes de la ×. */
-.grafo-ficha-plegar {
+.grafo-ficha-titulo .grafo-ficha-plegar {
   flex: 1;
   display: flex;
   justify-content: space-between;
@@ -2154,7 +2154,7 @@ details > summary::-webkit-details-marker {
 /* La × se inseta como el rótulo de la izquierda (8px de la barra de título),
    simétrica y sin pegarse al borde. Los -8px arriba y abajo mantienen la barra
    a 32px sin perder zona de toque. */
-.grafo-cerrar {
+.grafo-ficha-titulo .grafo-cerrar {
   width: 32px;
   min-height: 32px;
   margin: -8px 0;

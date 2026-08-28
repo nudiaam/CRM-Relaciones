@@ -1707,3 +1707,16 @@ además, ni al alejar al máximo entraba entera. Cada cosa tenía su causa:
   y respondió correctamente en `/salud`. Después se cerraron únicamente los
   procesos de esa prueba y se retiró la carpeta temporal; `datos.db` y los
   audios reales no se tocaron.
+
+### 2026-08-25 — Ficha resumida visible de noche en móvil
+
+- La barra de la ficha resumida usa ahora los colores invertidos comunes de los
+  dos modos, en lugar de papel y tinta crudos.
+- Los botones de plegar y cerrar mantienen su fondo transparente ante la regla
+  general de botones nocturnos. Al plegar la ficha en móvil, el rótulo y la × ya
+  no se confunden con el fondo oscuro.
+- Revisado visualmente a 409×915 en modo noche con la ficha plegada y abierta;
+  el texto conserva contraste en ambos estados. El ejecutable se reconstruyó y
+  una copia aislada respondió en `/salud` y sirvió la versión nueva del CSS; la
+  base y los audios reales no se modificaron.
+- Recurso actualizado: `estilo.css?v=20260825a`.
